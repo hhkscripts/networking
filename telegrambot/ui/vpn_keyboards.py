@@ -29,34 +29,27 @@ def make_switch_vpn_keyboard(
     keyboard: List[List[InlineKeyboardButton]] = []
 
     # 1. Sing-box / VLESS Reality buttons (if available)
+    vless_buttons: List[InlineKeyboardButton] = []
     if available.get("sing0", False):
         if vless_servers is None:
             vless_servers = get_vless_servers()
 
         if vless_servers:
-            vless_row: List[InlineKeyboardButton] = []
             for s_num, label in vless_servers:
-                vless_row.append(
+                vless_buttons.append(
                     InlineKeyboardButton(
                         label,
                         callback_data=f"switch_reality_{s_num}",
                         icon_custom_emoji_id=EMOJI_VLESS,
                     )
                 )
-                if len(vless_row) == 2:
-                    keyboard.append(vless_row)
-                    vless_row = []
-            if vless_row:
-                keyboard.append(vless_row)
         else:
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        "VLESS Reality (sing0)",
-                        callback_data="switch_sing0",
-                        icon_custom_emoji_id=EMOJI_VLESS,
-                    )
-                ]
+            vless_buttons.append(
+                InlineKeyboardButton(
+                    "VLESS Reality (sing0)",
+                    callback_data="switch_sing0",
+                    icon_custom_emoji_id=EMOJI_VLESS,
+                )
             )
 
     # 2. Other VPN protocol buttons (AmneziaWG, OpenVPN, WireGuard)
@@ -86,33 +79,52 @@ def make_switch_vpn_keyboard(
             )
         )
 
-    for i in range(0, len(proto_buttons), 2):
-        keyboard.append(proto_buttons[i : i + 2])
-
-    # 3. Exit Country (only if Sing-box is available)
+    # 3. Mode buttons: Exit Country & Auto (Auto Select)
+    mode_buttons: List[InlineKeyboardButton] = []
     if available.get("sing0", False):
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "Exit Country",
-                    callback_data="menu_country",
-                    icon_custom_emoji_id=EMOJI_GLOBE,
-                )
-            ]
-        )
-
-    # 4. Auto (Auto Select)
-    keyboard.append(
-        [
+        mode_buttons.append(
             InlineKeyboardButton(
-                "Auto (Auto Select)",
-                callback_data="switch_auto",
-                icon_custom_emoji_id=EMOJI_REFRESH,
+                "Exit Country",
+                callback_data="menu_country",
+                icon_custom_emoji_id=EMOJI_GLOBE,
             )
-        ]
+        )
+    mode_buttons.append(
+        InlineKeyboardButton(
+            "Auto (Auto Select)",
+            callback_data="switch_auto",
+            icon_custom_emoji_id=EMOJI_REFRESH,
+        )
     )
 
-    # 5. Navigation: Back to Status
+    # If VLESS has an odd single button (e.g. single sing0) and Exit Country is available,
+    # pair them together gracefully (both are Sing-box features)
+    if (
+        len(vless_buttons) % 2 == 1
+        and mode_buttons
+        and mode_buttons[0].callback_data == "menu_country"
+    ):
+        first_btn = vless_buttons.pop(0)
+        country_btn = mode_buttons.pop(0)
+        keyboard.append([first_btn, country_btn])
+
+    for i in range(0, len(vless_buttons), 2):
+        keyboard.append(vless_buttons[i : i + 2])
+
+    for i in range(0, len(proto_buttons), 2):
+        chunk = proto_buttons[i : i + 2]
+        if len(chunk) == 2:
+            keyboard.append(chunk)
+        else:
+            if mode_buttons:
+                keyboard.append([chunk[0], mode_buttons.pop(0)])
+            else:
+                keyboard.append(chunk)
+
+    for i in range(0, len(mode_buttons), 2):
+        keyboard.append(mode_buttons[i : i + 2])
+
+    # 4. Navigation: Back to Status
     keyboard.append(
         [
             InlineKeyboardButton("🔙 Back to Status", callback_data="refresh_status"),

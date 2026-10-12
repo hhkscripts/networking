@@ -57,6 +57,16 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("switch_auto", callbacks_all)
         self.assertIn("refresh_status", callbacks_all)
 
+        # Test standard setup (sing0 with 2 servers, awg0, tun0, no wg0)
+        kb_std = make_switch_vpn_keyboard(
+            available={"sing0": True, "awg0": True, "tun0": True, "wg0": False},
+            vless_servers=[("1", "VLESS S1"), ("2", "VLESS S2")],
+        )
+        self.assertEqual(len(kb_std.inline_keyboard[0]), 2)  # VLESS S1 & S2
+        self.assertEqual(len(kb_std.inline_keyboard[1]), 2)  # AmneziaWG & OpenVPN
+        self.assertEqual(len(kb_std.inline_keyboard[2]), 2)  # Exit Country & Auto
+        self.assertEqual(len(kb_std.inline_keyboard[3]), 1)  # Back to Status
+
         # Test partial available backends (e.g. only awg0)
         kb_awg_only = make_switch_vpn_keyboard(
             available={"sing0": False, "awg0": True, "tun0": False, "wg0": False}
@@ -71,6 +81,8 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertNotIn("menu_country", callbacks_awg)
         self.assertIn("switch_auto", callbacks_awg)
         self.assertIn("refresh_status", callbacks_awg)
+        self.assertEqual(len(kb_awg_only.inline_keyboard[0]), 2)  # awg0 + auto
+        self.assertEqual(len(kb_awg_only.inline_keyboard[1]), 1)  # Back to status
 
     def test_adguard_keyboard_toggle(self):
         kb_on = make_adguard_keyboard(adguard_on=True)
