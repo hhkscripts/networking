@@ -20,7 +20,7 @@ def make_status_keyboard(status_text: str) -> InlineKeyboardMarkup:
         icon_custom_emoji_id=EMOJI_WIREGUARD,
     )
     country_btn = InlineKeyboardButton(
-        "Exit Country",
+        "VPN Profiles",
         callback_data="menu_country",
         icon_custom_emoji_id=EMOJI_GLOBE,
     )

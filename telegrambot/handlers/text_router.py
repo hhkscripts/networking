@@ -50,7 +50,9 @@ async def handle_text_message(
         await switch_menu_command(update, context)
     elif text.startswith("vpn ") or text.startswith("/vpn "):
         parts = text.split()
-        if len(parts) > 1:
+        if len(parts) > 1 and parts[1] in ["profile", "profiles"]:
+            await country_menu_command(update, context)
+        elif len(parts) > 1:
             context.args = [parts[1]]
             await switch_vpn_command(update, context)
         else:
@@ -119,16 +121,25 @@ async def handle_text_message(
         "regions",
         "exit country",
         "exit_country",
+        "profile",
+        "profiles",
+        "vpn profile",
+        "vpn profiles",
+        "vpn_profiles",
         "/country",
         "/countries",
         "/region",
         "/regions",
+        "/profiles",
     ] or normalized in [
         "country",
         "countries",
         "region",
         "regions",
         "exit_country",
+        "profile",
+        "profiles",
+        "vpn_profiles",
     ]:
         await country_menu_command(update, context)
     elif (

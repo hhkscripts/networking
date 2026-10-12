@@ -34,7 +34,7 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
             KeyboardButton("AdGuard", icon_custom_emoji_id=EMOJI_ADGUARD),
         ],
         [
-            KeyboardButton("Country", icon_custom_emoji_id=EMOJI_GLOBE),
+            KeyboardButton("VPN Profiles", icon_custom_emoji_id=EMOJI_GLOBE),
             KeyboardButton("Help", icon_custom_emoji_id=EMOJI_HELP),
         ],
     ],

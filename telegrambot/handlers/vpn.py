@@ -14,10 +14,14 @@ from telegrambot.core.config import check_authorization, logger
 from telegrambot.core.runner import (
     get_current_backend_name,
     get_status_text,
+    get_vless_servers,
     run_hotspot_command,
 )
 from telegrambot.ui.status_keyboards import make_status_keyboard
-from telegrambot.ui.vpn_keyboards import make_switch_vpn_keyboard
+from telegrambot.ui.vpn_keyboards import (
+    make_switch_vpn_keyboard,
+    make_vless_keyboard,
+)
 
 
 async def switch_menu_command(
@@ -69,6 +73,26 @@ async def switch_vpn_callback(
         try:
             await query.edit_message_text(
                 text, reply_markup=make_switch_vpn_keyboard(), parse_mode="HTML"
+            )
+            await query.answer()
+        except Exception:
+            pass
+        return
+
+    if data == "menu_vless":
+        current = get_current_backend_name()
+        vless_servers = get_vless_servers()
+        count = len(vless_servers)
+        text = (
+            f"<b>{TG_EMOJI_VLESS} VLESS Reality Servers:</b>\n\n"
+            f"Active: {current}\n\n"
+            f"Select a server below ({count} available):"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=make_vless_keyboard(vless_servers),
+                parse_mode="HTML",
             )
             await query.answer()
         except Exception:

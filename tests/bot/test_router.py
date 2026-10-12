@@ -39,7 +39,17 @@ class TestTelegramBotTextRouter(unittest.TestCase):
         "telegrambot.handlers.text_router.country_menu_command", new_callable=AsyncMock
     )
     def test_routes_country_text_to_country_menu(self, mock_country_menu, mock_auth):
-        for text in ["country", "Country", "countries", "region", "Region", "regions"]:
+        for text in [
+            "country",
+            "Country",
+            "countries",
+            "region",
+            "Region",
+            "regions",
+            "VPN Profiles",
+            "vpn profiles",
+            "profiles",
+        ]:
             mock_country_menu.reset_mock()
             update = self._make_update(text)
             import asyncio

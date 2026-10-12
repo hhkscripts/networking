@@ -50,10 +50,13 @@ async def country_menu_command(
     profiles = get_bot_country_profiles()
     current_display = _get_current_display()
     reply_markup = make_region_keyboard()
-    hdr = f"<b>{TG_EMOJI_GLOBE} Select Exit Region ({len(profiles)} Countries):</b>"
+    hdr = (
+        f"<b>{TG_EMOJI_GLOBE} Select VPN Profile Region "
+        f"({len(profiles)} Countries):</b>"
+    )
     text = (
         f"{hdr}\n\n"
-        f"Active Exit: <b>{current_display}</b>\n\n"
+        f"Active Profile: <b>{current_display}</b>\n\n"
         f"Traffic detours through your VLESS Reality VPS first (bypassing DPI), "
         f"then exits through VPN profile in the selected country.\n\n"
         f"Choose a region below:"
@@ -91,10 +94,13 @@ async def country_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if data == "menu_country":
         reply_markup = make_region_keyboard()
-        hdr = f"<b>{TG_EMOJI_GLOBE} Select Exit Region ({len(profiles)} Countries):</b>"
+        hdr = (
+            f"<b>{TG_EMOJI_GLOBE} Select VPN Profile Region "
+            f"({len(profiles)} Countries):</b>"
+        )
         text = (
             f"{hdr}\n\n"
-            f"Active Exit: <b>{current_display}</b>\n\n"
+            f"Active Profile: <b>{current_display}</b>\n\n"
             f"Traffic detours through your VLESS Reality VPS first (bypassing DPI), "
             f"then exits through VPN profile in the selected country.\n\n"
             f"Choose a region below:"
@@ -194,7 +200,7 @@ async def country_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     try:
         if code == 0:
             await query.edit_message_text(
-                text=f"<b>Switched Exit Country to {target_name}!</b>\n\n{status_text}",
+                text=f"<b>Switched VPN Profile to {target_name}!</b>\n\n{status_text}",
                 reply_markup=reply_markup,
                 parse_mode="HTML",
             )

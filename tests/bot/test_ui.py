@@ -10,7 +10,10 @@ from telegrambot.ui.country_keyboards import (
 from telegrambot.ui.ipv6_keyboards import make_ipv6_keyboard
 from telegrambot.ui.main_keyboard import MAIN_KEYBOARD
 from telegrambot.ui.status_keyboards import make_status_keyboard
-from telegrambot.ui.vpn_keyboards import make_switch_vpn_keyboard
+from telegrambot.ui.vpn_keyboards import (
+    make_switch_vpn_keyboard,
+    make_vless_keyboard,
+)
 
 
 class TestTelegramBotUI(unittest.TestCase):
@@ -27,7 +30,7 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("Switch VPN", button_texts)
         self.assertIn("IPv6 Mode", button_texts)
         self.assertIn("AdGuard", button_texts)
-        self.assertIn("Country", button_texts)
+        self.assertIn("VPN Profiles", button_texts)
         self.assertIn("Help", button_texts)
 
     def test_status_keyboard_structure(self):
@@ -38,18 +41,18 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("menu_adguard", callbacks)
         self.assertIn("menu_ipv6", callbacks)
         self.assertIn("refresh_status", callbacks)
+        button_texts = [btn.text for row in kb.inline_keyboard for btn in row]
+        self.assertIn("VPN Profiles", button_texts)
 
     def test_switch_vpn_keyboard(self):
         # Test full available backends
         kb_all = make_switch_vpn_keyboard(
-            available={"sing0": True, "awg0": True, "tun0": True, "wg0": True},
-            vless_servers=[("1", "VLESS S1"), ("2", "VLESS S2")],
+            available={"sing0": True, "awg0": True, "tun0": True, "wg0": True}
         )
         callbacks_all = [
             btn.callback_data for row in kb_all.inline_keyboard for btn in row
         ]
-        self.assertIn("switch_reality_1", callbacks_all)
-        self.assertIn("switch_reality_2", callbacks_all)
+        self.assertIn("menu_vless", callbacks_all)
         self.assertIn("switch_awg0", callbacks_all)
         self.assertIn("switch_tun0", callbacks_all)
         self.assertIn("switch_wg0", callbacks_all)
@@ -57,15 +60,16 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("switch_auto", callbacks_all)
         self.assertIn("refresh_status", callbacks_all)
 
-        # Test standard setup (sing0 with 2 servers, awg0, tun0, no wg0)
+        # Test standard setup (sing0, awg0, tun0, no wg0)
         kb_std = make_switch_vpn_keyboard(
-            available={"sing0": True, "awg0": True, "tun0": True, "wg0": False},
-            vless_servers=[("1", "VLESS S1"), ("2", "VLESS S2")],
+            available={"sing0": True, "awg0": True, "tun0": True, "wg0": False}
         )
-        self.assertEqual(len(kb_std.inline_keyboard[0]), 2)  # VLESS S1 & S2
-        self.assertEqual(len(kb_std.inline_keyboard[1]), 2)  # AmneziaWG & OpenVPN
-        self.assertEqual(len(kb_std.inline_keyboard[2]), 2)  # Exit Country & Auto
-        self.assertEqual(len(kb_std.inline_keyboard[3]), 1)  # Back to Status
+        # Row 0: VLESS Reality & AmneziaWG
+        self.assertEqual(len(kb_std.inline_keyboard[0]), 2)
+        # Row 1: OpenVPN & VPN Profiles
+        self.assertEqual(len(kb_std.inline_keyboard[1]), 2)
+        # Row 2: Auto Select & Back to Status
+        self.assertEqual(len(kb_std.inline_keyboard[2]), 2)
 
         # Test partial available backends (e.g. only awg0)
         kb_awg_only = make_switch_vpn_keyboard(
@@ -75,7 +79,7 @@ class TestTelegramBotUI(unittest.TestCase):
             btn.callback_data for row in kb_awg_only.inline_keyboard for btn in row
         ]
         self.assertIn("switch_awg0", callbacks_awg)
-        self.assertNotIn("switch_reality_1", callbacks_awg)
+        self.assertNotIn("menu_vless", callbacks_awg)
         self.assertNotIn("switch_tun0", callbacks_awg)
         self.assertNotIn("switch_wg0", callbacks_awg)
         self.assertNotIn("menu_country", callbacks_awg)
@@ -83,6 +87,19 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("refresh_status", callbacks_awg)
         self.assertEqual(len(kb_awg_only.inline_keyboard[0]), 2)  # awg0 + auto
         self.assertEqual(len(kb_awg_only.inline_keyboard[1]), 1)  # Back to status
+
+    def test_vless_keyboard(self):
+        kb_vless = make_vless_keyboard(
+            vless_servers=[("1", "VLESS S1"), ("2", "VLESS S2")]
+        )
+        callbacks = [
+            btn.callback_data for row in kb_vless.inline_keyboard for btn in row
+        ]
+        self.assertIn("switch_reality_1", callbacks)
+        self.assertIn("switch_reality_2", callbacks)
+        self.assertIn("menu_switch", callbacks)
+        self.assertEqual(len(kb_vless.inline_keyboard[0]), 2)  # S1 & S2
+        self.assertEqual(len(kb_vless.inline_keyboard[1]), 1)  # Back to VPN Menu
 
     def test_adguard_keyboard_toggle(self):
         kb_on = make_adguard_keyboard(adguard_on=True)
