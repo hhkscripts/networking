@@ -10,7 +10,6 @@ from .constants import CONFIG
 from .context import Context
 from .runner import (
     get_configured_backend,
-    get_host_path,
     get_vless_display_name,
     run_args,
 )
@@ -208,7 +207,7 @@ def wait_for_interface(interface: str, timeout: int = 60) -> bool:
 
 
 def get_connected_clients() -> list[dict]:
-    """Parse dnsmasq leases and station dump to return connected client device details."""
+    """Return enriched list of connected client device details."""
     from .clients import get_connected_clients_detailed
 
     ctx = Context.get()
@@ -216,4 +215,3 @@ def get_connected_clients() -> list[dict]:
         ctx, "get_connected_clients_detailed", get_connected_clients_detailed
     )
     return get_clients_fn()
-

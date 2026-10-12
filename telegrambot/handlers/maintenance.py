@@ -185,4 +185,3 @@ async def refresh_clients_callback(
     except Exception as e:
         if "not modified" not in str(e).lower():
             logger.warning(f"Could not edit clients message: {e}")
-
