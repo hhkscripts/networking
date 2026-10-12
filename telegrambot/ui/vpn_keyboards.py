@@ -97,8 +97,8 @@ def make_switch_vpn_keyboard(
         )
     )
 
-    # If VLESS has an odd single button (e.g. single sing0) and Exit Country is available,
-    # pair them together gracefully (both are Sing-box features)
+    # If VLESS has an odd single button (e.g. single sing0) and Exit Country
+    # is available, pair them together gracefully (both are Sing-box features)
     if (
         len(vless_buttons) % 2 == 1
         and mode_buttons
