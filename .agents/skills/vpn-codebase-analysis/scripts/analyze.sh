@@ -91,8 +91,34 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
-# 5. Telegram Bot Unit Tests
-echo -e "\n${YELLOW}[5/6] Running Telegram Bot Unit Tests...${NC}"
+# 5. Black Formatting Check
+echo -e "\n${YELLOW}[5/8] Checking Code Formatting (Black)...${NC}"
+if command -v black >/dev/null 2>&1; then
+    if black --check scripts/ tests/ telegrambot/; then
+        echo -e "${GREEN}✅ PASSED: Black code formatting verified.${NC}"
+    else
+        echo -e "${RED}❌ FAILED: Black formatting check failed.${NC}"
+        FAILURES=$((FAILURES + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠️  Black not installed, skipping.${NC}"
+fi
+
+# 6. Flake8 Linting Check
+echo -e "\n${YELLOW}[6/8] Checking Code Style & Linting (Flake8)...${NC}"
+if command -v flake8 >/dev/null 2>&1; then
+    if flake8 scripts/ tests/ telegrambot/; then
+        echo -e "${GREEN}✅ PASSED: Flake8 linting passed.${NC}"
+    else
+        echo -e "${RED}❌ FAILED: Flake8 linting check failed.${NC}"
+        FAILURES=$((FAILURES + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠️  Flake8 not installed, skipping.${NC}"
+fi
+
+# 7. Telegram Bot Unit Tests
+echo -e "\n${YELLOW}[7/8] Running Telegram Bot Unit Tests...${NC}"
 if env PYTHONHOME="" PYTHONPATH="$BOT_PYTHONPATH" python3 -m unittest -v tests/test_telegram_bot.py; then
     echo -e "${GREEN}✅ PASSED: All Telegram Bot unit tests succeeded.${NC}"
 else
@@ -100,8 +126,8 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
-# 6. Hotspot Manager & Routing Tests
-echo -e "\n${YELLOW}[6/6] Running Hotspot Manager & Script Tests...${NC}"
+# 8. Hotspot Manager & Routing Tests
+echo -e "\n${YELLOW}[8/8] Running Hotspot Manager & Script Tests...${NC}"
 if env PYTHONHOME= PYTHONPATH= python3 -m unittest -v tests/test_hotspot_manager.py; then
     echo -e "${GREEN}✅ PASSED: All Hotspot Manager unit tests succeeded.${NC}"
 else
