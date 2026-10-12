@@ -263,11 +263,11 @@ def main() -> None:
         print(output)
 
     if args.clients:
+        from .clients import format_clients
+
         connected = getattr(ctx, "get_connected_clients", get_connected_clients)()
-        count = len(connected) if connected else getattr(ctx, "check_clients")()
-        print(f"Clients: {count}")
-        for dev in connected or []:
-            print(f"  - {dev['hostname']} ({dev['ip']} / {dev['mac']})")
+        fmt_fn = getattr(ctx, "format_clients", format_clients)
+        print(fmt_fn(connected or [], telegram_format=telegram_format))
 
     if args.restart_vpn:
         if not getattr(ctx, "restart_vpn")():

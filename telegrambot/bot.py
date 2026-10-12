@@ -52,6 +52,7 @@ from telegrambot.handlers.ipv6 import (
 from telegrambot.handlers.maintenance import (
     clients_command,
     fix_command,
+    refresh_clients_callback,
     restart_command,
     restart_vpn_command,
 )
@@ -117,6 +118,9 @@ def create_application() -> Application:
         CallbackQueryHandler(adguard_callback, pattern="^(adguard_|menu_adguard)")
     )
     app.add_handler(CallbackQueryHandler(refresh_callback, pattern="^refresh_status$"))
+    app.add_handler(
+        CallbackQueryHandler(refresh_clients_callback, pattern="^refresh_clients$")
+    )
 
     # Plain text message handler
     app.add_handler(

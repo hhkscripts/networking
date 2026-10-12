@@ -104,9 +104,11 @@ CUSTOM_EMOJIS = {
     "raspberrypi": _get_tg_emoji("raspberrypi", "6165792622787961093", "🍓"),
     "adguard": _get_tg_emoji("adguard", "6165657271188594962", "🛡"),
     "ipv6": _get_tg_emoji("ipv6", "6165466570345686935", "🔒"),
+    "clients": _get_tg_emoji("clients", "6127157759872868272", "📡"),
 }
 
 EMOJI_SIGNAL = CUSTOM_EMOJIS["signal"]
+EMOJI_CLIENTS = CUSTOM_EMOJIS["clients"]
 EMOJI_TOOLS = CUSTOM_EMOJIS["tools"]
 EMOJI_CHECK = CUSTOM_EMOJIS["check"]
 EMOJI_LOCK = CUSTOM_EMOJIS["lock"]

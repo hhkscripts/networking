@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from telegrambot.constants.emojis import TG_EMOJI_AMNEZIAWG, TG_EMOJI_RPI
 from telegrambot.core.config import check_authorization, logger
 from telegrambot.core.runner import run_hotspot_command
+from telegrambot.ui.clients_keyboards import make_clients_keyboard
 from telegrambot.ui.main_keyboard import MAIN_KEYBOARD
 
 
@@ -127,7 +128,7 @@ async def fix_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def clients_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """List connected hotspot clients."""
+    """List connected hotspot clients with detailed information."""
     if update.effective_user is None or not check_authorization(
         update.effective_user.id
     ):
@@ -136,9 +137,52 @@ async def clients_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     loop = asyncio.get_running_loop()
     stdout, stderr, _ = await loop.run_in_executor(
-        None, run_hotspot_command, ["--clients"]
+        None, run_hotspot_command, ["--clients", "--html"]
     )
     response = (stdout if stdout else stderr).strip()
     if not response:
-        response = "Clients: 0 (No connected devices)"
-    await update.message.reply_text(response, reply_markup=MAIN_KEYBOARD)
+        response = "<b>📱 Connected Clients: 0</b>\n<i>No connected devices.</i>"
+    await update.message.reply_text(
+        response, reply_markup=make_clients_keyboard(), parse_mode="HTML"
+    )
+
+
+async def refresh_clients_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle inline button click for refreshing connected clients."""
+    query = update.callback_query
+    if query is None:
+        return
+    if update.effective_user is None or not check_authorization(
+        update.effective_user.id
+    ):
+        try:
+            await query.answer("Unauthorized", show_alert=True)
+        except Exception:
+            pass
+        return
+
+    try:
+        await query.answer("Refreshing clients...")
+    except Exception:
+        pass
+
+    loop = asyncio.get_running_loop()
+    stdout, stderr, _ = await loop.run_in_executor(
+        None, run_hotspot_command, ["--clients", "--html"]
+    )
+    response = (stdout if stdout else stderr).strip()
+    if not response:
+        response = "<b>📱 Connected Clients: 0</b>\n<i>No connected devices.</i>"
+
+    try:
+        await query.edit_message_text(
+            text=response,
+            reply_markup=make_clients_keyboard(),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        if "not modified" not in str(e).lower():
+            logger.warning(f"Could not edit clients message: {e}")
+

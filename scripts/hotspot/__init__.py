@@ -10,6 +10,7 @@ from .adguard import (
     set_ipv6_mode,
 )
 from .cli import main
+from .clients import format_clients, get_connected_clients_detailed
 from .constants import (
     APPLY_ROUTE_SCRIPT,
     CONFIG,
@@ -17,6 +18,7 @@ from .constants import (
     EMOJI_ADGUARD,
     EMOJI_AMNEZIAWG,
     EMOJI_CHECK,
+    EMOJI_CLIENTS,
     EMOJI_CROSS,
     EMOJI_GLOBE,
     EMOJI_IPV6,
@@ -114,6 +116,7 @@ __all__ = [
     "EMOJI_ADGUARD",
     "EMOJI_AMNEZIAWG",
     "EMOJI_CHECK",
+    "EMOJI_CLIENTS",
     "EMOJI_CROSS",
     "EMOJI_GLOBE",
     "EMOJI_IPV6",
@@ -150,6 +153,7 @@ __all__ = [
     "ensure_adguard_resilience",
     "ensure_vpn_resilience",
     "fix_hotspot",
+    "format_clients",
     "generate_singbox_config",
     "get_active_vpn_interface",
     "get_adguard_enabled",
@@ -158,6 +162,7 @@ __all__ = [
     "get_configured_unlimited_country",
     "get_country_profiles",
     "get_connected_clients",
+    "get_connected_clients_detailed",
     "get_current_singbox_endpoint_ip",
     "get_host_path",
     "get_hotspot_ssid",
