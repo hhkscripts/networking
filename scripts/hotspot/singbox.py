@@ -18,22 +18,17 @@ from .profiles import (
 )
 from .runner import get_host_path, log, run_args, update_goodwifi_conf
 
-_parse_ovpn_endpoint = parse_ovpn_endpoint
-_parse_wg_endpoint = parse_wg_endpoint
-
 
 def _write_json_config(path: str, data: dict, runner) -> bool:
     with tempfile.NamedTemporaryFile("w", delete=False) as tf:
         json.dump(data, tf, indent=2)
         tmp = tf.name
-    if "sing-box" in path:
-        which_ok, _, _ = runner(["which", "sing-box"])
-        if which_ok:
-            chk_ok, _, err = runner(["sing-box", "check", "-c", tmp])
-            if not chk_ok:
-                log(f"Sing-box config check failed: {err}", "ERROR")
-                os.unlink(tmp)
-                return False
+    if "sing-box" in path and runner(["which", "sing-box"])[0]:
+        chk_ok, _, err = runner(["sing-box", "check", "-c", tmp])
+        if not chk_ok:
+            log(f"Sing-box config check failed: {err}", "ERROR")
+            os.unlink(tmp)
+            return False
     runner(["sudo", "mkdir", "-p", os.path.dirname(path)])
     runner(["sudo", "cp", tmp, path])
     runner(["sudo", "chmod", "0644", path])
@@ -50,6 +45,7 @@ def generate_singbox_config(
     tun_addr = os.getenv("SINGBOX_TUN_ADDR", "10.99.0.1/30")
     socks_port = int(os.getenv("XRAY_SOCKS_PORT", "10808"))
     socks_host = os.getenv("XRAY_SOCKS_HOST", "127.0.0.1")
+    tun_mtu = int(os.getenv("SINGBOX_MTU", os.getenv("VPN_MTU", "1380")))
     cfg = {
         "log": {"level": "warn"},
         "inbounds": [
@@ -61,7 +57,7 @@ def generate_singbox_config(
                 "auto_route": False,
                 "strict_route": False,
                 "stack": "system",
-                "mtu": 1380,
+                "mtu": tun_mtu,
             }
         ],
         "outbounds": [
@@ -81,19 +77,41 @@ def generate_singbox_config(
             if profile_path.endswith(".ovpn"):
                 with open(profile_path, "r", encoding="utf-8") as f:
                     cfg["endpoints"] = [
-                        _parse_ovpn_endpoint(f.read(), target_ip=target_ip)
+                        parse_ovpn_endpoint(f.read(), target_ip=target_ip)
                     ]
                 out_tag = "ovpn-out"
             elif profile_path.endswith(".conf"):
                 cfg["endpoints"] = [
-                    _parse_wg_endpoint(profile_path, target_ip=target_ip)
+                    parse_wg_endpoint(profile_path, target_ip=target_ip)
                 ]
                 out_tag = "wg-out"
         except Exception as e:
             logger(f"Error parsing profile {profile_path}: {e}", "ERROR")
 
+    if out_tag != "xray-socks":
+        vps = _get_vps_ips()
+        if vps:
+            cfg["route"]["rules"].append(
+                {"ip_cidr": [f"{ip}/32" for ip in vps], "outbound": "xray-socks"}
+            )
     cfg["route"]["rules"].append({"inbound": ["tun-in"], "outbound": out_tag})
     return cfg
+
+
+def _get_vps_ips() -> list[str]:
+    ctx = Context.get()
+    xp = getattr(ctx, "get_host_path", get_host_path)("/etc/xray/config.json")
+    ips = ["5.183.9.86", "198.71.50.129"]
+    if os.path.exists(xp):
+        try:
+            with open(xp, "r", encoding="utf-8") as f:
+                for o in json.load(f).get("outbounds", []):
+                    addr = o.get("settings", {}).get("vnext", [{}])[0].get("address")
+                    if addr and addr not in ips:
+                        ips.append(addr)
+        except Exception:
+            pass
+    return ips
 
 
 def get_current_singbox_endpoint_ip() -> Optional[str]:
@@ -268,10 +286,9 @@ def switch_reality_server(server_num: str) -> bool:
             logger(f"Reality server '{target_tag}' not found in config", "ERROR")
             return False
 
-        other_outbounds = [
+        cfg["outbounds"] = [target] + [
             o for o in cfg.get("outbounds", []) if o.get("tag") != target_tag
         ]
-        cfg["outbounds"] = [target] + other_outbounds
         _write_json_config(config_path, cfg, runner)
 
         runner(["sudo", "systemctl", "restart", "xray"], timeout=15)

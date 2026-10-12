@@ -236,6 +236,7 @@ def parse_ovpn_endpoint(content: str, target_ip: Optional[str] = None) -> dict:
         tls_dict["server_name"] = tls_name
 
     ping_val = _opt(r"^\s*ping\s+(\d+)", "5")
+    ping_restart_val = os.getenv("OPENVPN_PING_RESTART", "20s")
     ep_dict = {
         "type": "openvpn-client",
         "tag": "ovpn-out",
@@ -245,7 +246,7 @@ def parse_ovpn_endpoint(content: str, target_ip: Optional[str] = None) -> dict:
         "auth": auth_val,
         "tls": tls_dict,
         "ping_interval": f"{ping_val}s" if ping_val else "5s",
-        "ping_restart": "20s",
+        "ping_restart": ping_restart_val,
         "handshake_window": "30s",
         "tls_timeout": "10s",
         "detour": "xray-socks",
