@@ -53,8 +53,8 @@ class TestTelegramBotUI(unittest.TestCase):
             btn.callback_data for row in kb_all.inline_keyboard for btn in row
         ]
         self.assertIn("menu_vless", callbacks_all)
-        self.assertIn("switch_awg0", callbacks_all)
-        self.assertIn("switch_tun0", callbacks_all)
+        self.assertTrue("switch_awg0" in callbacks_all or "menu_awg" in callbacks_all)
+        self.assertTrue("switch_tun0" in callbacks_all or "menu_ovpn" in callbacks_all)
         self.assertIn("switch_wg0", callbacks_all)
         self.assertIn("menu_country", callbacks_all)
         self.assertIn("switch_auto", callbacks_all)
@@ -78,7 +78,7 @@ class TestTelegramBotUI(unittest.TestCase):
         callbacks_awg = [
             btn.callback_data for row in kb_awg_only.inline_keyboard for btn in row
         ]
-        self.assertIn("switch_awg0", callbacks_awg)
+        self.assertTrue("switch_awg0" in callbacks_awg or "menu_awg" in callbacks_awg)
         self.assertNotIn("menu_vless", callbacks_awg)
         self.assertNotIn("switch_tun0", callbacks_awg)
         self.assertNotIn("switch_wg0", callbacks_awg)
@@ -100,6 +100,24 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("menu_switch", callbacks)
         self.assertEqual(len(kb_vless.inline_keyboard[0]), 2)  # S1 & S2
         self.assertEqual(len(kb_vless.inline_keyboard[1]), 1)  # Back to VPN Menu
+
+    def test_amnezia_and_openvpn_keyboards(self):
+        from telegrambot.ui.vpn_keyboards import (
+            make_amnezia_keyboard,
+            make_openvpn_keyboard,
+        )
+
+        kb_awg = make_amnezia_keyboard([("awg0", "AWG 0"), ("awg1", "AWG 1")])
+        awg_callbacks = [b.callback_data for r in kb_awg.inline_keyboard for b in r]
+        self.assertIn("switch_awg0", awg_callbacks)
+        self.assertIn("switch_awg1", awg_callbacks)
+        self.assertIn("menu_switch", awg_callbacks)
+
+        kb_ovpn = make_openvpn_keyboard([("tun0", "OVPN 0"), ("tun1", "OVPN 1")])
+        ovpn_callbacks = [b.callback_data for r in kb_ovpn.inline_keyboard for b in r]
+        self.assertIn("switch_tun0", ovpn_callbacks)
+        self.assertIn("switch_tun1", ovpn_callbacks)
+        self.assertIn("menu_switch", ovpn_callbacks)
 
     def test_adguard_keyboard_toggle(self):
         kb_on = make_adguard_keyboard(adguard_on=True)

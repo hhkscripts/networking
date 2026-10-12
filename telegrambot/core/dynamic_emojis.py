@@ -55,7 +55,7 @@ def load_cached_emojis() -> Dict[str, str]:
                         )
                         return _EMOJI_CACHE
             except Exception as e:
-                logger.warning("Could not read emoji cache from %s: %e", loc, e)
+                logger.warning("Could not read emoji cache from %s: %s", loc, e)
 
     return _EMOJI_CACHE
 

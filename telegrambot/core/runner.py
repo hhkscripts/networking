@@ -173,12 +173,7 @@ def get_available_vpn_backends() -> dict[str, bool]:
     Returns dict mapping backend keys ('sing0', 'awg0', 'tun0', 'wg0')
     to their availability status.
     """
-    backends = {
-        "sing0": False,
-        "awg0": False,
-        "tun0": False,
-        "wg0": False,
-    }
+    backends = {"sing0": False, "awg0": False, "tun0": False, "wg0": False}
 
     # Check sing-box / xray
     for base in ["/host", ""]:
@@ -192,8 +187,10 @@ def get_available_vpn_backends() -> dict[str, bool]:
 
     # Check AmneziaWG
     for base in ["/host", ""]:
-        if os.path.exists(f"{base}/etc/amnezia/amneziawg/awg0.conf") or os.path.exists(
-            f"{base}/sys/class/net/awg0"
+        if (
+            os.path.exists(f"{base}/etc/amnezia/amneziawg/awg0.conf")
+            or os.path.exists(f"{base}/sys/class/net/awg0")
+            or os.path.isdir(f"{base}/etc/amnezia/amneziawg")
         ):
             backends["awg0"] = True
             break
@@ -208,45 +205,13 @@ def get_available_vpn_backends() -> dict[str, bool]:
 
     # Check OpenVPN (tun0)
     for base in ["/host", ""]:
-        if os.path.exists(f"{base}/sys/class/net/tun0"):
+        if (
+            os.path.exists(f"{base}/sys/class/net/tun0")
+            or os.path.isdir(f"{base}/etc/openvpn/client")
+            or os.path.isdir(f"{base}/etc/NetworkManager/system-connections")
+        ):
             backends["tun0"] = True
             break
-
-    if not backends["tun0"]:
-        for base in ["/host", ""]:
-            nm_dir = f"{base}/etc/NetworkManager/system-connections"
-            if os.path.isdir(nm_dir):
-                try:
-                    for fname in os.listdir(nm_dir):
-                        fpath = os.path.join(nm_dir, fname)
-                        if os.path.isfile(fpath):
-                            with open(
-                                fpath, "r", encoding="utf-8", errors="ignore"
-                            ) as f:
-                                content = f.read()
-                                if "type=vpn" in content or "[vpn]" in content:
-                                    backends["tun0"] = True
-                                    break
-                except Exception:
-                    pass
-            if backends["tun0"]:
-                break
-
-    if not backends["tun0"]:
-        for base in ["/host", ""]:
-            for d in [f"{base}/etc/openvpn/client", f"{base}/etc/openvpn"]:
-                if os.path.isdir(d):
-                    try:
-                        for fname in os.listdir(d):
-                            if fname.endswith(".ovpn") or fname.endswith(".conf"):
-                                backends["tun0"] = True
-                                break
-                    except Exception:
-                        pass
-                if backends["tun0"]:
-                    break
-            if backends["tun0"]:
-                break
 
     # If completely unconfigured/zero detected (e.g. fresh environment or CI),
     # fallback to standard defaults so UI remains functional
@@ -254,6 +219,45 @@ def get_available_vpn_backends() -> dict[str, bool]:
         return {"sing0": True, "awg0": True, "tun0": True, "wg0": False}
 
     return backends
+
+
+def get_amnezia_profiles() -> list[tuple[str, str]]:
+    """Detect available AmneziaWG configs on host."""
+    profiles: list[tuple[str, str]] = []
+    for base in ["/host", ""]:
+        awg_dir = f"{base}/etc/amnezia/amneziawg"
+        if os.path.isdir(awg_dir):
+            try:
+                for fname in sorted(os.listdir(awg_dir)):
+                    if fname.endswith(".conf"):
+                        iface = fname.replace(".conf", "")
+                        profiles.append((iface, f"AmneziaWG ({iface})"))
+            except Exception:
+                pass
+        if profiles:
+            return profiles
+    return [("awg0", "AmneziaWG (awg0)")]
+
+
+def get_openvpn_profiles() -> list[tuple[str, str]]:
+    """Detect available OpenVPN client configs on host."""
+    profiles: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for base in ["/host", ""]:
+        for d in [f"{base}/etc/openvpn/client", f"{base}/etc/openvpn"]:
+            if os.path.isdir(d):
+                try:
+                    for fname in sorted(os.listdir(d)):
+                        if fname.endswith((".ovpn", ".conf")):
+                            name = fname.rsplit(".", 1)[0]
+                            if name not in seen and name != "update-resolv-conf":
+                                seen.add(name)
+                                profiles.append((name, f"OpenVPN ({name})"))
+                except Exception:
+                    pass
+        if profiles:
+            return profiles
+    return [("tun0", "OpenVPN (tun0)")]
 
 
 def get_vless_servers() -> list[tuple[str, str]]:

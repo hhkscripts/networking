@@ -13,7 +13,9 @@ from telegrambot.constants.emojis import (
     EMOJI_WIREGUARD,
 )
 from telegrambot.core.runner import (
+    get_amnezia_profiles,
     get_available_vpn_backends,
+    get_openvpn_profiles,
     get_vless_servers,
 )
 
@@ -40,18 +42,22 @@ def make_switch_vpn_keyboard(
 
     # 2. Other VPN protocol buttons (AmneziaWG, OpenVPN, WireGuard)
     if available.get("awg0", False):
+        awg_profiles = get_amnezia_profiles()
+        cb = "menu_awg" if len(awg_profiles) > 1 else f"switch_{awg_profiles[0][0]}"
         buttons.append(
             InlineKeyboardButton(
                 "AmneziaWG",
-                callback_data="switch_awg0",
+                callback_data=cb,
                 icon_custom_emoji_id=EMOJI_AMNEZIAWG,
             )
         )
     if available.get("tun0", False):
+        ovpn_profiles = get_openvpn_profiles()
+        cb = "menu_ovpn" if len(ovpn_profiles) > 1 else f"switch_{ovpn_profiles[0][0]}"
         buttons.append(
             InlineKeyboardButton(
                 "OpenVPN",
-                callback_data="switch_tun0",
+                callback_data=cb,
                 icon_custom_emoji_id=EMOJI_OPENVPN,
             )
         )
@@ -134,6 +140,68 @@ def make_vless_keyboard(
         )
 
     # Navigation: Back to VPN Menu
+    keyboard.append(
+        [
+            InlineKeyboardButton("🔙 Back to VPN Menu", callback_data="menu_switch"),
+        ]
+    )
+    return InlineKeyboardMarkup(keyboard)
+
+
+def make_amnezia_keyboard(
+    profiles: Optional[List[Tuple[str, str]]] = None,
+) -> InlineKeyboardMarkup:
+    """Build inline keyboard for choosing AmneziaWG profile."""
+    if profiles is None:
+        profiles = get_amnezia_profiles()
+
+    keyboard: List[List[InlineKeyboardButton]] = []
+    row: List[InlineKeyboardButton] = []
+    for iface, label in profiles:
+        row.append(
+            InlineKeyboardButton(
+                label,
+                callback_data=f"switch_{iface}",
+                icon_custom_emoji_id=EMOJI_AMNEZIAWG,
+            )
+        )
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
+    keyboard.append(
+        [
+            InlineKeyboardButton("🔙 Back to VPN Menu", callback_data="menu_switch"),
+        ]
+    )
+    return InlineKeyboardMarkup(keyboard)
+
+
+def make_openvpn_keyboard(
+    profiles: Optional[List[Tuple[str, str]]] = None,
+) -> InlineKeyboardMarkup:
+    """Build inline keyboard for choosing OpenVPN profile."""
+    if profiles is None:
+        profiles = get_openvpn_profiles()
+
+    keyboard: List[List[InlineKeyboardButton]] = []
+    row: List[InlineKeyboardButton] = []
+    for iface, label in profiles:
+        row.append(
+            InlineKeyboardButton(
+                label,
+                callback_data=f"switch_{iface}",
+                icon_custom_emoji_id=EMOJI_OPENVPN,
+            )
+        )
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+
     keyboard.append(
         [
             InlineKeyboardButton("🔙 Back to VPN Menu", callback_data="menu_switch"),

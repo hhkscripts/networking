@@ -112,6 +112,26 @@ class TestTelegramBotRunnerConfigParsers(unittest.TestCase):
                 self.assertEqual(servers[1][0], "2")
                 self.assertIn("5.183", servers[1][1])
 
+    def test_get_amnezia_profiles(self):
+        from telegrambot.core.runner import get_amnezia_profiles
+
+        with patch("os.path.isdir", return_value=True):
+            with patch("os.listdir", return_value=["awg0.conf", "awg1.conf"]):
+                profs = get_amnezia_profiles()
+                self.assertEqual(len(profs), 2)
+                self.assertEqual(profs[0][0], "awg0")
+                self.assertEqual(profs[1][0], "awg1")
+
+    def test_get_openvpn_profiles(self):
+        from telegrambot.core.runner import get_openvpn_profiles
+
+        with patch("os.path.isdir", return_value=True):
+            with patch("os.listdir", return_value=["client1.ovpn", "client2.conf"]):
+                profs = get_openvpn_profiles()
+                self.assertEqual(len(profs), 2)
+                self.assertEqual(profs[0][0], "client1")
+                self.assertEqual(profs[1][0], "client2")
+
 
 class TestTelegramBotStatusHandler(unittest.TestCase):
     """Test status_command handler behavior."""

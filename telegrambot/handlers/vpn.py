@@ -12,13 +12,17 @@ from telegrambot.constants.emojis import (
 )
 from telegrambot.core.config import check_authorization, logger
 from telegrambot.core.runner import (
+    get_amnezia_profiles,
     get_current_backend_name,
+    get_openvpn_profiles,
     get_status_text,
     get_vless_servers,
     run_hotspot_command,
 )
 from telegrambot.ui.status_keyboards import make_status_keyboard
 from telegrambot.ui.vpn_keyboards import (
+    make_amnezia_keyboard,
+    make_openvpn_keyboard,
     make_switch_vpn_keyboard,
     make_vless_keyboard,
 )
@@ -92,6 +96,46 @@ async def switch_vpn_callback(
             await query.edit_message_text(
                 text,
                 reply_markup=make_vless_keyboard(vless_servers),
+                parse_mode="HTML",
+            )
+            await query.answer()
+        except Exception:
+            pass
+        return
+
+    if data == "menu_awg":
+        current = get_current_backend_name()
+        profiles = get_amnezia_profiles()
+        count = len(profiles)
+        text = (
+            f"<b>{TG_EMOJI_AMNEZIAWG} AmneziaWG Profiles:</b>\n\n"
+            f"Active: {current}\n\n"
+            f"Select an AmneziaWG profile below ({count} available):"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=make_amnezia_keyboard(profiles),
+                parse_mode="HTML",
+            )
+            await query.answer()
+        except Exception:
+            pass
+        return
+
+    if data == "menu_ovpn":
+        current = get_current_backend_name()
+        profiles = get_openvpn_profiles()
+        count = len(profiles)
+        text = (
+            f"<b>{TG_EMOJI_OPENVPN} OpenVPN Profiles:</b>\n\n"
+            f"Active: {current}\n\n"
+            f"Select an OpenVPN profile below ({count} available):"
+        )
+        try:
+            await query.edit_message_text(
+                text,
+                reply_markup=make_openvpn_keyboard(profiles),
                 parse_mode="HTML",
             )
             await query.answer()
