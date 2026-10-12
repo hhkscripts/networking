@@ -64,10 +64,16 @@ class TestTelegramBotUI(unittest.TestCase):
         kb_std = make_switch_vpn_keyboard(
             available={"sing0": True, "awg0": True, "tun0": True, "wg0": False}
         )
-        # Row 0: VLESS Reality & AmneziaWG
+        # Row 0: AmneziaWG & OpenVPN
         self.assertEqual(len(kb_std.inline_keyboard[0]), 2)
-        # Row 1: OpenVPN & VPN Profiles
+        row0_texts = [btn.text for btn in kb_std.inline_keyboard[0]]
+        self.assertIn("AmneziaWG", row0_texts)
+        self.assertIn("OpenVPN", row0_texts)
+        # Row 1: VLESS Reality & VPN Profiles
         self.assertEqual(len(kb_std.inline_keyboard[1]), 2)
+        row1_texts = [btn.text for btn in kb_std.inline_keyboard[1]]
+        self.assertIn("VLESS Reality", row1_texts)
+        self.assertIn("VPN Profiles", row1_texts)
         # Row 2: Auto Select & Back to Status
         self.assertEqual(len(kb_std.inline_keyboard[2]), 2)
 

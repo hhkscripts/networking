@@ -104,9 +104,7 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("adguard", adguard_command))
 
     # Callback query handlers
-    switch_pattern = (
-        r"^(switch_(sing0|reality_1|reality_2|awg0|tun0|wg0|auto)|menu_switch)$"
-    )
+    switch_pattern = r"^(switch_.*|menu_switch|menu_vless|menu_awg|menu_ovpn)$"
     app.add_handler(CallbackQueryHandler(switch_vpn_callback, pattern=switch_pattern))
     app.add_handler(
         CallbackQueryHandler(

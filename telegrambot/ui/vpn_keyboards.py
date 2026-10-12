@@ -30,17 +30,7 @@ def make_switch_vpn_keyboard(
     keyboard: List[List[InlineKeyboardButton]] = []
     buttons: List[InlineKeyboardButton] = []
 
-    # 1. Sing-box / VLESS Reality sub-menu trigger
-    if available.get("sing0", False):
-        buttons.append(
-            InlineKeyboardButton(
-                "VLESS Reality",
-                callback_data="menu_vless",
-                icon_custom_emoji_id=EMOJI_VLESS,
-            )
-        )
-
-    # 2. Other VPN protocol buttons (AmneziaWG, OpenVPN, WireGuard)
+    # 1. Other VPN protocol buttons (AmneziaWG, OpenVPN, WireGuard)
     if available.get("awg0", False):
         awg_profiles = get_amnezia_profiles()
         cb = "menu_awg" if len(awg_profiles) > 1 else f"switch_{awg_profiles[0][0]}"
@@ -67,6 +57,16 @@ def make_switch_vpn_keyboard(
                 "WireGuard",
                 callback_data="switch_wg0",
                 icon_custom_emoji_id=EMOJI_WIREGUARD,
+            )
+        )
+
+    # 2. Sing-box / VLESS Reality sub-menu trigger
+    if available.get("sing0", False):
+        buttons.append(
+            InlineKeyboardButton(
+                "VLESS Reality",
+                callback_data="menu_vless",
+                icon_custom_emoji_id=EMOJI_VLESS,
             )
         )
 
