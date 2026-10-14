@@ -105,7 +105,9 @@ class TestDynamicEmojis(unittest.TestCase):
         )
 
         load_cached_emojis()
-        sample = "• Connected: <code>True</code> (⚡ VLESS [🇯🇵 JP] / <code>sing0</code>)"
+        sample = (
+            "• Connected: <code>True</code> (⚡ VLESS [🇯🇵 JP] / <code>sing0</code>)"
+        )
         enriched = enrich_status_text_with_custom_emojis(sample, "jp")
         self.assertIn("tg-emoji", enriched)
         self.assertIn("5456261908069885892", enriched)

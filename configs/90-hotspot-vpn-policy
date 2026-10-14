@@ -16,9 +16,6 @@ RULE_PRIORITY="${RULE_PRIORITY:-1000}"
 HOST_RULE_PRIORITY="${HOST_RULE_PRIORITY:-999}"
 BYPASS_RULE_PRIORITY="${BYPASS_RULE_PRIORITY:-998}"
 MANAGEMENT_RULE_PRIORITY="${MANAGEMENT_RULE_PRIORITY:-997}"
-DOCKER_BYPASS_PRIORITY="${DOCKER_BYPASS_PRIORITY:-996}"
-DOCKER_RULE_PRIORITY="${DOCKER_RULE_PRIORITY:-1001}"
-DOCKER_SUBNET="${DOCKER_SUBNET:-172.16.0.0/12}"
 FWMARK="${FWMARK:-100}"
 BYPASS_FWMARK="${BYPASS_FWMARK:-101}"
 VPN_IPSET="${VPN_IPSET:-vpn_domains}"
@@ -267,10 +264,6 @@ apply_policy() {
 
     ip rule del from "$HOTSPOT_SUBNET" table "$TABLE_ID" priority "$RULE_PRIORITY" 2>/dev/null || true
     ip rule add from "$HOTSPOT_SUBNET" table "$TABLE_ID" priority "$RULE_PRIORITY" 2>/dev/null || true
-    ip rule del from "$DOCKER_SUBNET" to "$DOCKER_SUBNET" table main priority "$DOCKER_BYPASS_PRIORITY" 2>/dev/null || true
-    ip rule add from "$DOCKER_SUBNET" to "$DOCKER_SUBNET" table main priority "$DOCKER_BYPASS_PRIORITY" 2>/dev/null || true
-    ip rule del from "$DOCKER_SUBNET" table "$TABLE_ID" priority "$DOCKER_RULE_PRIORITY" 2>/dev/null || true
-    ip rule add from "$DOCKER_SUBNET" table "$TABLE_ID" priority "$DOCKER_RULE_PRIORITY" 2>/dev/null || true
     ip rule del fwmark "$FWMARK" table "$TABLE_ID" priority "$HOST_RULE_PRIORITY" 2>/dev/null || true
     ip rule add fwmark "$FWMARK" table "$TABLE_ID" priority "$HOST_RULE_PRIORITY" 2>/dev/null || true
     ip rule del fwmark "$BYPASS_FWMARK" table main priority "$BYPASS_RULE_PRIORITY" 2>/dev/null || true
@@ -278,8 +271,6 @@ apply_policy() {
     for subnet in $MANAGEMENT_SUBNETS; do
         ip rule del from "$HOTSPOT_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
         ip rule add from "$HOTSPOT_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
-        ip rule del from "$DOCKER_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
-        ip rule add from "$DOCKER_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
     done
 
     iptables -t nat -C POSTROUTING -s "$HOTSPOT_SUBNET" -o "$VPN_IF" -j MASQUERADE 2>/dev/null || \
@@ -444,13 +435,10 @@ cleanup_policy() {
     remove_rule filter INPUT -i "$HOTSPOT_IF" -s "$HOTSPOT_SUBNET" -j REJECT --reject-with icmp-port-unreachable
     remove_rule filter INPUT -i "$HOTSPOT_IF" -m state --state RELATED,ESTABLISHED -j ACCEPT
     ip rule del from "$HOTSPOT_SUBNET" table "$TABLE_ID" priority "$RULE_PRIORITY" 2>/dev/null || true
-    ip rule del from "$DOCKER_SUBNET" to "$DOCKER_SUBNET" table main priority "$DOCKER_BYPASS_PRIORITY" 2>/dev/null || true
-    ip rule del from "$DOCKER_SUBNET" table "$TABLE_ID" priority "$DOCKER_RULE_PRIORITY" 2>/dev/null || true
     ip rule del fwmark "$FWMARK" table "$TABLE_ID" priority "$HOST_RULE_PRIORITY" 2>/dev/null || true
     ip rule del fwmark "$BYPASS_FWMARK" table main priority "$BYPASS_RULE_PRIORITY" 2>/dev/null || true
     for subnet in $MANAGEMENT_SUBNETS; do
         ip rule del from "$HOTSPOT_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
-        ip rule del from "$DOCKER_SUBNET" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
     done
     ip route flush table "$TABLE_ID" 2>/dev/null || true
 }

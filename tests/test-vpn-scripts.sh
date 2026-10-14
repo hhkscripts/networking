@@ -1015,9 +1015,6 @@ if grep -q 'dpkg-divert .*\(/usr/sbin/openvpn\|OPENVPN\)' "$SETUP" "$UNINSTALL";
   exit 1
 fi
 grep -q 'flock -w 60 9' "$POLICY"
-grep -q 'DOCKER_SUBNET="${DOCKER_SUBNET:-172.16.0.0/12}"' "$POLICY"
-grep -q 'from "$DOCKER_SUBNET" to "$DOCKER_SUBNET" table main' "$POLICY"
-grep -q 'from "$DOCKER_SUBNET" table "$TABLE_ID"' "$POLICY"
 # These are literal source-code patterns, not shell expressions.
 # shellcheck disable=SC2016
 grep -q 'VPN_MTU="${VPN_MTU:-1400}"' "$POLICY"

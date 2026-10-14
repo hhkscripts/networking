@@ -84,17 +84,10 @@ class RestartVpnTests(unittest.TestCase):
 
 class SingboxBackendTests(unittest.TestCase):
     def test_get_active_vpn_interface_sing0(self):
-        with (
-            patch.object(
-                hotspot_manager,
-                "run_args",
-                return_value=(True, "default dev sing0 proto static scope link\n", ""),
-            ),
-            patch.object(
-                hotspot_manager,
-                "get_vless_display_name",
-                return_value="VLESS",
-            ),
+        with patch.object(
+            hotspot_manager,
+            "run_args",
+            return_value=(True, "default dev sing0 proto static scope link\n", ""),
         ):
             iface, name = hotspot_manager.get_active_vpn_interface()
             self.assertEqual(iface, "sing0")

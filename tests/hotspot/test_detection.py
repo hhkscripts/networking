@@ -73,7 +73,7 @@ class VpnConnectionDetectionTests(unittest.TestCase):
             "1700000001 aa:bb:cc:dd:ee:ff 192.168.12.51 * *\n"
         )
         with (
-            patch("hotspot.clients.get_wifi_stations", return_value={}),
+            patch("os.path.exists", return_value=True),
             patch("builtins.open", unittest.mock.mock_open(read_data=lease_content)),
         ):
             clients = hotspot_manager.get_connected_clients()
