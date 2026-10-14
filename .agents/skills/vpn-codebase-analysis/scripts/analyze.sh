@@ -33,7 +33,12 @@ fi
 
 # 2. Syntax & Compilation Check
 echo -e "\n${YELLOW}[2/6] Checking Python Syntax & Compilation...${NC}"
-BOT_PYTHONPATH="${REPO_ROOT}/telegrambot/.venv/lib/python3.11/site-packages:${REPO_ROOT}"
+if [ -d "${REPO_ROOT}/telegrambot/.venv" ]; then
+    BOT_VENV="${REPO_ROOT}/telegrambot/.venv"
+else
+    BOT_VENV="${REPO_ROOT}/telegrambot/venv"
+fi
+BOT_PYTHONPATH="${BOT_VENV}/lib/python3.11/site-packages:${REPO_ROOT}"
 SYNTAX_ERRORS=0
 while IFS= read -r pyfile; do
     if ! env PYTHONHOME="" PYTHONPATH="$BOT_PYTHONPATH" python3 -m py_compile "$pyfile" 2>/dev/null; then
