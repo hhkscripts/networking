@@ -64,10 +64,7 @@ def main() -> None:
         "--reality-server",
         dest="reality_server",
         choices=["1", "2", "server-1", "server-2"],
-        help=(
-            "Switch primary Reality server "
-            "(1: IONOS 198.71.50.129, 2: Hostinger 5.183.9.86)"
-        ),
+        help="Switch primary Reality server (1: server-1, 2: server-2)",
     )
     parser.add_argument(
         "--unlimited-country",

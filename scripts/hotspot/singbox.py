@@ -16,6 +16,11 @@ from .profiles import (
     parse_ovpn_endpoint,
     parse_wg_endpoint,
 )
+from .remote import (
+    get_vps_ips,
+    is_remote_vps_configured,
+    switch_remote_vps_exit,
+)
 from .runner import get_host_path, log, run_args, update_goodwifi_conf
 
 
@@ -29,9 +34,12 @@ def _write_json_config(path: str, data: dict, runner) -> bool:
             log(f"Sing-box config check failed: {err}", "ERROR")
             os.unlink(tmp)
             return False
-    runner(["sudo", "mkdir", "-p", os.path.dirname(path)])
-    runner(["sudo", "cp", tmp, path])
-    runner(["sudo", "chmod", "0644", path])
+    for cmd in [
+        ["mkdir", "-p", os.path.dirname(path)],
+        ["cp", tmp, path],
+        ["chmod", "0644", path],
+    ]:
+        runner(["sudo"] + cmd)
     os.unlink(tmp)
     return True
 
@@ -46,28 +54,26 @@ def generate_singbox_config(
     socks_port = int(os.getenv("XRAY_SOCKS_PORT", "10808"))
     socks_host = os.getenv("XRAY_SOCKS_HOST", "127.0.0.1")
     tun_mtu = int(os.getenv("SINGBOX_MTU", os.getenv("VPN_MTU", "1380")))
+    inbound_tun = {
+        "type": "tun",
+        "tag": "tun-in",
+        "interface_name": "sing0",
+        "address": [tun_addr],
+        "auto_route": False,
+        "strict_route": False,
+        "stack": "system",
+        "mtu": tun_mtu,
+    }
+    outbound_socks = {
+        "type": "socks",
+        "tag": "xray-socks",
+        "server": socks_host,
+        "server_port": socks_port,
+    }
     cfg = {
         "log": {"level": "warn"},
-        "inbounds": [
-            {
-                "type": "tun",
-                "tag": "tun-in",
-                "interface_name": "sing0",
-                "address": [tun_addr],
-                "auto_route": False,
-                "strict_route": False,
-                "stack": "system",
-                "mtu": tun_mtu,
-            }
-        ],
-        "outbounds": [
-            {
-                "type": "socks",
-                "tag": "xray-socks",
-                "server": socks_host,
-                "server_port": socks_port,
-            }
-        ],
+        "inbounds": [inbound_tun],
+        "outbounds": [outbound_socks],
         "route": {"rules": [{"action": "sniff"}]},
     }
 
@@ -89,29 +95,20 @@ def generate_singbox_config(
             logger(f"Error parsing profile {profile_path}: {e}", "ERROR")
 
     if out_tag != "xray-socks":
-        vps = _get_vps_ips()
+        vps = get_vps_ips()
         if vps:
-            cfg["route"]["rules"].append(
-                {"ip_cidr": [f"{ip}/32" for ip in vps], "outbound": "xray-socks"}
-            )
+            ip_rules = [f"{ip}/32" for ip in vps if not any(c.isalpha() for c in ip)]
+            dom_rules = [ip for ip in vps if any(c.isalpha() for c in ip)]
+            if ip_rules:
+                cfg["route"]["rules"].append(
+                    {"ip_cidr": ip_rules, "outbound": "xray-socks"}
+                )
+            if dom_rules:
+                cfg["route"]["rules"].append(
+                    {"domain": dom_rules, "outbound": "xray-socks"}
+                )
     cfg["route"]["rules"].append({"inbound": ["tun-in"], "outbound": out_tag})
     return cfg
-
-
-def _get_vps_ips() -> list[str]:
-    ctx = Context.get()
-    xp = getattr(ctx, "get_host_path", get_host_path)("/etc/xray/config.json")
-    ips = ["5.183.9.86", "198.71.50.129"]
-    if os.path.exists(xp):
-        try:
-            with open(xp, "r", encoding="utf-8") as f:
-                for o in json.load(f).get("outbounds", []):
-                    addr = o.get("settings", {}).get("vnext", [{}])[0].get("address")
-                    if addr and addr not in ips:
-                        ips.append(addr)
-        except Exception:
-            pass
-    return ips
 
 
 def get_current_singbox_endpoint_ip() -> Optional[str]:
@@ -150,9 +147,7 @@ def _try_activate_endpoints(
         getattr(ctx, "wait_for_interface")("sing0", timeout=12)
         getattr(ctx, "apply_vpn_policy")("sing0")
         getattr(ctx, "refresh_routes", getattr(ctx, "refresh_github_routes"))()
-        ensure_adg = getattr(ctx, "ensure_adguard_resilience", None)
-        if ensure_adg:
-            ensure_adg()
+        getattr(ctx, "ensure_adguard_resilience", lambda: None)()
 
         ok_ext = False
         for _ in range(4):
@@ -206,7 +201,7 @@ def rotate_unlimited_country_ip(country: Optional[str] = None) -> bool:
 
 
 def switch_unlimited_country(country: str, target_ip: Optional[str] = None) -> bool:
-    """Switch Sing-box exit country using KeepSolid profile detour."""
+    """Switch Sing-box exit country using remote VPS or local profile detour."""
     ctx = Context.get()
     logger = getattr(ctx, "log", log)
     runner = getattr(ctx, "run_args", run_args)
@@ -214,9 +209,13 @@ def switch_unlimited_country(country: str, target_ip: Optional[str] = None) -> b
     upd_conf = getattr(ctx, "update_goodwifi_conf", update_goodwifi_conf)
     get_profiles = getattr(ctx, "get_country_profiles", get_country_profiles)
     gen_config = getattr(ctx, "generate_singbox_config", generate_singbox_config)
+    is_remote_fn = getattr(ctx, "is_remote_vps_configured", is_remote_vps_configured)
+    remote_switch_fn = getattr(ctx, "switch_remote_vps_exit", switch_remote_vps_exit)
 
     country = country.lower().strip()
     if country in ["direct", "off", "none"]:
+        if is_remote_fn():
+            remote_switch_fn("direct")
         cfg = gen_config(None)
         config_path = get_path("/etc/sing-box/config.json")
         _write_json_config(config_path, cfg, runner)
@@ -225,11 +224,21 @@ def switch_unlimited_country(country: str, target_ip: Optional[str] = None) -> b
         getattr(ctx, "wait_for_interface")("sing0", timeout=10)
         getattr(ctx, "apply_vpn_policy")("sing0")
         getattr(ctx, "refresh_routes", getattr(ctx, "refresh_github_routes"))()
-        ensure_adg = getattr(ctx, "ensure_adguard_resilience", None)
-        if ensure_adg:
-            ensure_adg()
+        getattr(ctx, "ensure_adguard_resilience", lambda: None)()
         logger("Switched Multi-Country exit to DIRECT", "SUCCESS")
         return True
+
+    if is_remote_fn():
+        ok, msg = remote_switch_fn(country)
+        if ok:
+            cfg = gen_config(None)
+            _write_json_config(get_path("/etc/sing-box/config.json"), cfg, runner)
+            upd_conf("UNLIMITED_COUNTRY", country)
+            if getattr(ctx, "get_configured_backend")() != "sing0":
+                getattr(ctx, "switch_vpn")("sing0")
+            logger(f"Switched remote exit to {country.upper()}", "SUCCESS")
+            return True
+        logger(f"Remote switch failed: {msg}. Trying local fallback...", "WARN")
 
     profiles = get_profiles()
     if country not in profiles:
@@ -238,62 +247,22 @@ def switch_unlimited_country(country: str, target_ip: Optional[str] = None) -> b
 
     profile_path = profiles[country]["path"]
     candidate_ips = get_profile_candidate_ips(profile_path)
-    if target_ip:
-        ordered_ips = [target_ip] + [ip for ip in candidate_ips if ip != target_ip]
-    else:
-        ordered_ips = candidate_ips or [None]
+    ordered_ips = (
+        [target_ip] + [ip for ip in candidate_ips if ip != target_ip]
+        if target_ip
+        else (candidate_ips or [None])
+    )
 
     upd_conf("UNLIMITED_COUNTRY", country)
-    backend = getattr(ctx, "get_configured_backend")()
-    if backend != "sing0":
+    if getattr(ctx, "get_configured_backend")() != "sing0":
         getattr(ctx, "switch_vpn")("sing0")
 
     if _try_activate_endpoints(ctx, profile_path, ordered_ips, country):
         return True
 
     logger(
-        f"Country profile '{country.upper()}' did not handshake. "
-        "Reverting to Direct VLESS...",
+        f"Profile '{country.upper()}' failed handshake. Reverting to Direct...",
         "WARN",
     )
     switch_unlimited_country("direct")
     return False
-
-
-def switch_reality_server(server_num: str) -> bool:
-    """Switch primary Xray Reality outbound between server-1 and server-2."""
-    ctx = Context.get()
-    logger = getattr(ctx, "log", log)
-    runner = getattr(ctx, "run_args", run_args)
-    get_path = getattr(ctx, "get_host_path", get_host_path)
-
-    config_path = get_path("/etc/xray/config.json")
-    if not os.path.exists(config_path):
-        logger(f"Xray config not found at {config_path}", "ERROR")
-        return False
-
-    target_tag = (
-        f"server-{server_num}" if not server_num.startswith("server-") else server_num
-    )
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-
-        target = next(
-            (o for o in cfg.get("outbounds", []) if o.get("tag") == target_tag), None
-        )
-        if not target:
-            logger(f"Reality server '{target_tag}' not found in config", "ERROR")
-            return False
-
-        cfg["outbounds"] = [target] + [
-            o for o in cfg.get("outbounds", []) if o.get("tag") != target_tag
-        ]
-        _write_json_config(config_path, cfg, runner)
-
-        runner(["sudo", "systemctl", "restart", "xray"], timeout=15)
-        logger(f"Switched Reality primary to {target_tag}", "SUCCESS")
-        return True
-    except Exception as e:
-        logger(f"Failed to switch Reality server: {e}", "ERROR")
-        return False

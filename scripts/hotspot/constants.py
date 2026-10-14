@@ -22,6 +22,9 @@ class Config(TypedDict, total=False):
     adguard_container: str
     telegram_container: str
     adguard_enabled: bool
+    vps_ssh_host: Optional[str]
+    vps_ssh_port: Optional[int]
+    vps_ssh_user: Optional[str]
 
 
 class PingStatus(TypedDict):

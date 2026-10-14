@@ -94,11 +94,11 @@ class TestTelegramBotRunnerConfigParsers(unittest.TestCase):
                 "outbounds": [
                     {
                         "tag": "server-1",
-                        "settings": {"vnext": [{"address": "198.71.50.129"}]},
+                        "settings": {"vnext": [{"address": "203.0.113.1"}]},
                     },
                     {
                         "tag": "server-2",
-                        "settings": {"vnext": [{"address": "5.183.9.86"}]},
+                        "settings": {"vnext": [{"address": "198.51.100.2"}]},
                     },
                 ]
             }
@@ -108,9 +108,9 @@ class TestTelegramBotRunnerConfigParsers(unittest.TestCase):
                 servers = get_vless_servers()
                 self.assertEqual(len(servers), 2)
                 self.assertEqual(servers[0][0], "1")
-                self.assertIn("198.71", servers[0][1])
+                self.assertIn("203.0", servers[0][1])
                 self.assertEqual(servers[1][0], "2")
-                self.assertIn("5.183", servers[1][1])
+                self.assertIn("198.51", servers[1][1])
 
     def test_get_amnezia_profiles(self):
         from telegrambot.core.runner import get_amnezia_profiles

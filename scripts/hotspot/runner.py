@@ -3,6 +3,7 @@
 Host execution and system runner helpers.
 """
 
+import json
 import os
 import subprocess
 import tempfile
@@ -83,6 +84,15 @@ def load_goodwifi_conf() -> None:
                             "disable",
                             "disabled",
                         ]
+                    elif k == "VPS_SSH_HOST" and v:
+                        cfg["vps_ssh_host"] = v
+                    elif k == "VPS_SSH_PORT" and v:
+                        try:
+                            cfg["vps_ssh_port"] = int(v)
+                        except ValueError:
+                            pass
+                    elif k == "VPS_SSH_USER" and v:
+                        cfg["vps_ssh_user"] = v
         except Exception:
             pass
 
@@ -241,3 +251,20 @@ def check_docker_container(container: str) -> Optional[bool]:
             return out.lower() == "true"
 
     return None
+
+
+def write_json_file(path: str, data: dict) -> bool:
+    """Safely write JSON configuration to a destination file using sudo."""
+    ctx = Context.get()
+    runner = getattr(ctx, "run_args", run_args)
+    with tempfile.NamedTemporaryFile("w", delete=False) as tf:
+        json.dump(data, tf, indent=2)
+        tmp = tf.name
+    for cmd in [
+        ["mkdir", "-p", os.path.dirname(path)],
+        ["cp", tmp, path],
+        ["chmod", "0644", path],
+    ]:
+        runner(["sudo"] + cmd)
+    os.unlink(tmp)
+    return True

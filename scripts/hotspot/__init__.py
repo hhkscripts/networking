@@ -76,11 +76,17 @@ from .runner import (
     run_args,
     update_goodwifi_conf,
 )
+from .remote import (
+    get_remote_vps_target,
+    get_vps_ips,
+    is_remote_vps_configured,
+    switch_reality_server,
+    switch_remote_vps_exit,
+)
 from .singbox import (
     generate_singbox_config,
     get_current_singbox_endpoint_ip,
     rotate_unlimited_country_ip,
-    switch_reality_server,
     switch_unlimited_country,
 )
 from .status import (
@@ -166,9 +172,12 @@ __all__ = [
     "get_current_singbox_endpoint_ip",
     "get_host_path",
     "get_hotspot_ssid",
+    "get_remote_vps_target",
     "get_status",
     "get_vless_display_name",
+    "get_vps_ips",
     "get_vpn_connection_name",
+    "is_remote_vps_configured",
     "load_goodwifi_conf",
     "log",
     "main",
@@ -190,6 +199,7 @@ __all__ = [
     "set_adguard_state",
     "set_ipv6_mode",
     "switch_reality_server",
+    "switch_remote_vps_exit",
     "switch_unlimited_country",
     "switch_vpn",
     "update_goodwifi_conf",
