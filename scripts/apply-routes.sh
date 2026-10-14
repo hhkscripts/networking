@@ -199,6 +199,19 @@ if [ -s "$vpn_cidrs" ]; then
     vpn_cidr_count="$(sort -u "$vpn_cidrs" | wc -l | tr -d ' ')"
 fi
 
+# Pre-populate critical domain IPs into vpn_domains immediately
+if [ "$DRY_RUN" -eq 0 ] && [ -s "$vpn_domains" ] && command -v getent >/dev/null 2>&1; then
+    for target_domain in fragment.com api.telegram.org telegram.org t.me; do
+        if grep -qx "$target_domain" "$vpn_domains" 2>/dev/null; then
+            getent ahostsv4 "$target_domain" 2>/dev/null | awk '{print $1}' | while IFS= read -r resolved_ip; do
+                if [ -n "$resolved_ip" ]; then
+                    ipset add "$VPN_DOMAINS_IPSET" "$resolved_ip" -exist 2>/dev/null || true
+                fi
+            done
+        fi
+    done
+fi
+
 log "Processed routes from $ROUTES_DIR:"
 log "  - local_routes: $local_domain_count domains, $local_cidr_count IP/CIDRs (bypass VPN)"
 log "  - vpn_routes:   $vpn_domain_count domains, $vpn_cidr_count IP/CIDRs (route via VPN)"
