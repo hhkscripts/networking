@@ -207,9 +207,10 @@ def parse_ovpn_endpoint(content: str, target_ip: Optional[str] = None) -> dict:
         else int(_opt(r"^\s*port\s+(\d+)", "1194"))
     )
     cipher = _opt(r"^\s*cipher\s+([^\s]+)")
-    data_ciphers = list(
-        dict.fromkeys([c for c in [cipher, "AES-256-GCM", "AES-256-CBC"] if c])
-    )
+    if cipher:
+        data_ciphers = [cipher]
+    else:
+        data_ciphers = ["AES-256-GCM", "AES-256-CBC"]
     auth_val = _opt(r"^\s*auth\s+([^\s]+)", "SHA512").upper()
 
     tls_name = (
@@ -236,7 +237,7 @@ def parse_ovpn_endpoint(content: str, target_ip: Optional[str] = None) -> dict:
         tls_dict["server_name"] = tls_name
 
     ping_val = _opt(r"^\s*ping\s+(\d+)", "5")
-    ping_restart_val = os.getenv("OPENVPN_PING_RESTART", "20s")
+    ping_restart_val = os.getenv("OPENVPN_PING_RESTART", "60s")
     ep_dict = {
         "type": "openvpn-client",
         "tag": "ovpn-out",

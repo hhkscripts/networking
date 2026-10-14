@@ -99,7 +99,7 @@ class CountryProfileTests(unittest.TestCase):
             self.assertIn("AES-128-GCM", ep["data_ciphers"])
             self.assertEqual(ep["tls"]["server_name"], "de.nordvpn.com")
             self.assertEqual(ep["ping_interval"], "5s")
-            self.assertEqual(ep["ping_restart"], "20s")
+            self.assertEqual(ep["ping_restart"], "60s")
             self.assertEqual(cfg["route"]["rules"][-1]["outbound"], "ovpn-out")
         finally:
             if os.path.exists(tf_path):
