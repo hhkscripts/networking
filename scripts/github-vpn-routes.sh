@@ -15,12 +15,16 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VPN_BACKEND="${VPN_BACKEND:-auto}"
 
 if [ -z "${VPN_IF:-}" ]; then
-    if [ "$VPN_BACKEND" = "awg0" ]; then
+    if [ "$VPN_BACKEND" = "sing0" ]; then
+        VPN_IF="sing0"
+    elif [ "$VPN_BACKEND" = "awg0" ]; then
         VPN_IF="awg0"
     elif [ "$VPN_BACKEND" = "wg0" ]; then
         VPN_IF="wg0"
     elif [ "$VPN_BACKEND" = "tun0" ]; then
         VPN_IF="tun0"
+    elif ip -4 addr show sing0 2>/dev/null | grep -q "inet "; then
+        VPN_IF="sing0"
     elif ip -4 addr show awg0 2>/dev/null | grep -q "inet "; then
         VPN_IF="awg0"
     elif ip -4 addr show wg0 2>/dev/null | grep -q "inet "; then
@@ -29,8 +33,7 @@ if [ -z "${VPN_IF:-}" ]; then
         VPN_IF="tun0"
     fi
 fi
-VPN_ROUTES_IPSET="${VPN_ROUTES_IPSET:-${GITHUB_IPSET:-vpn_routes}}"
-GITHUB_IPSET="$VPN_ROUTES_IPSET"
+VPN_ROUTES_IPSET="${VPN_ROUTES_IPSET:-vpn_routes}"
 META_URL="${GITHUB_META_URL:-https://api.github.com/meta}"
 FORCE_REFRESH="${GITHUB_ROUTES_FORCE_REFRESH:-0}"
 
@@ -71,24 +74,24 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-ipset create "$GITHUB_IPSET" hash:net family inet maxelem 131072 2>/dev/null || true
-if [ "$GITHUB_IPSET" != "github_vpn_routes" ] && ipset list github_vpn_routes >/dev/null 2>&1; then
+ipset create "$VPN_ROUTES_IPSET" hash:net family inet maxelem 131072 2>/dev/null || true
+if [ "$VPN_ROUTES_IPSET" != "github_vpn_routes" ] && ipset list github_vpn_routes >/dev/null 2>&1; then
     ipset flush github_vpn_routes 2>/dev/null || true
     ipset destroy github_vpn_routes 2>/dev/null || true
 fi
 
 existing_count=0
-if ipset list "$GITHUB_IPSET" >/dev/null 2>&1; then
-    existing_count="$(ipset list "$GITHUB_IPSET" -terse | awk '/Number of entries:/ {print $4; exit}')"
+if ipset list "$VPN_ROUTES_IPSET" >/dev/null 2>&1; then
+    existing_count="$(ipset list "$VPN_ROUTES_IPSET" -terse | awk '/Number of entries:/ {print $4; exit}')"
     existing_count="${existing_count:-0}"
 fi
 
 # If ipset is currently empty, quickly load pre-seeded local ranges first
 if [ "$existing_count" -eq 0 ] && [ -n "$PRESEEDED_RANGES" ] && [ -s "$PRESEEDED_RANGES" ]; then
     log "Loading pre-seeded GitHub IPv4 ranges from $PRESEEDED_RANGES..."
-    sed -e "s|^|add $GITHUB_IPSET |" -e 's|$| -exist|' "$PRESEEDED_RANGES" | ipset restore
+    sed -e "s|^|add $VPN_ROUTES_IPSET |" -e 's|$| -exist|' "$PRESEEDED_RANGES" | ipset restore
     existing_count="$(wc -l < "$PRESEEDED_RANGES" | tr -d ' ')" 
-    log "Loaded $existing_count pre-seeded GitHub IPv4 ranges into '$GITHUB_IPSET'."
+    log "Loaded $existing_count pre-seeded GitHub IPv4 ranges into '$VPN_ROUTES_IPSET'."
 fi
 
 if [ "$existing_count" -gt 0 ] && [ "$FORCE_REFRESH" != "1" ]; then
@@ -171,12 +174,12 @@ if [ ! -s "$tmp_ranges" ]; then
     exit 1
 fi
 
-ipset flush "$GITHUB_IPSET"
+ipset flush "$VPN_ROUTES_IPSET"
 
-sed -e "s|^|add $GITHUB_IPSET |" -e 's|$| -exist|' "$tmp_ranges" | ipset restore
+sed -e "s|^|add $VPN_ROUTES_IPSET |" -e 's|$| -exist|' "$tmp_ranges" | ipset restore
 added_count="$(wc -l < "$tmp_ranges" | tr -d ' ')" 
 
-log "Loaded $added_count GitHub IPv4 ranges into ipset '$GITHUB_IPSET'."
+log "Loaded $added_count GitHub IPv4 ranges into ipset '$VPN_ROUTES_IPSET'."
 
 # Save back to pre-seeded local file if writable
 if [ -n "$PRESEEDED_RANGES" ] && [ -w "$PRESEEDED_RANGES" ]; then
@@ -203,5 +206,5 @@ elif [ -x "/usr/local/bin/apply-routes.sh" ]; then
 fi
 
 log "Verify:"
-log "  sudo ipset list $GITHUB_IPSET"
+log "  sudo ipset list $VPN_ROUTES_IPSET"
 log "  ip route get 140.82.112.4 mark 100"

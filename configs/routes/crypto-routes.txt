@@ -27,3 +27,24 @@ bybdc6.com
 byabcde.com
 bytick.com
 by-financial.com
+
+# OKX (Web, App, and CDNs)
+okx.com
+okx.cab
+okx.biz
+
+# KuCoin
+kucoin.com
+
+# Gate.io
+gate.io
+
+# Bitget
+bitget.com
+
+# MEXC
+mexc.com
+
+# HTX / Huobi
+htx.com
+huobi.com

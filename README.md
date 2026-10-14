@@ -26,11 +26,11 @@ Traffic is split dynamically using Linux policy routing, packet marks, and ipset
 
 | Source / Destination | Interface | Routing Mechanism | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Hotspot Clients** (`10.42.0.0/24`) | Active VPN (`awg0` / `wg0` / `tun0`) | Policy `table 100` (`github_vpn`) | Encrypted, secure Internet for all Wi-Fi clients |
+| **Hotspot Clients** (`10.42.0.0/24`) | Active VPN (`sing0` / `awg0` / `wg0` / `tun0`) | Policy `table 100` | Encrypted, secure Internet for all Wi-Fi clients |
 | **Binance / Local Bypass** | `eth0` (Local ISP) | `fwmark 0x65` -> `table main` | Bypasses VPN so P2P exchanges see local Myanmar IP |
 | **GoodWifi Management Subnets** | `eth0` / Local LAN | `priority 997` -> `table main` | Clients can access Pi services (`10.42.0.1`, LAN IPs, VPN IPs) |
 | **Raspberry Pi Host Traffic** | `eth0` (Local ISP) | Default route (`table main`) | Fast, unaffected host networking, SSH, and Docker |
-| **Selected GitHub Host Traffic** | Active VPN (`awg0` / `tun0`) | `fwmark 0x64` (`vpn_routes`) | Ensures Git, GitHub Actions Runner, and APIs never timeout |
+| **Host VPN Routing (Git/Telegram/Linux repos)** | Active VPN (`sing0` / `awg0` / `tun0`) | `fwmark 0x64` (`vpn_routes`) | Ensures Git, GitHub Actions, and repos never timeout |
 
 ### Policy Routing Tables
 
@@ -84,8 +84,9 @@ VPN_MTU=""
 # OpenVPN NetworkManager connection profile name
 VPN_UUID=""
 
-# GitHub VPN routes ipset name
-GITHUB_IPSET="vpn_routes"
+# Policy routing ipset names
+VPN_ROUTES_IPSET="vpn_routes"
+LOCAL_ROUTES_IPSET="local_routes"
 
 # Network Interfaces
 HOTSPOT_IF="wlan0"

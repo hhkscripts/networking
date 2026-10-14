@@ -35,3 +35,24 @@ uab.com.mm
 uabpay.com.mm
 uabpaybusiness.com
 uabpayupi.com
+
+# MAB (Myanmar Apex Bank)
+mabbank.com
+mab.com.mm
+
+# MCB (Myanmar Citizens Bank) & Citizens Pay
+mcb.com.mm
+citizenspay.com.mm
+
+# AGD Bank & OnePay
+agdbank.com
+onepay.com.mm
+
+# A Bank
+abank.com.mm
+
+# Shwe Bank
+shwebank.com
+
+# TrueMoney Myanmar
+truemoney.com.mm

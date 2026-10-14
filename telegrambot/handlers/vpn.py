@@ -160,6 +160,14 @@ async def switch_vpn_callback(
         )
     else:
         target = data.replace("switch_", "")
+        ovpn_profs = [p[0] for p in get_openvpn_profiles()]
+        awg_profs = [p[0] for p in get_amnezia_profiles()]
+        backend_target = target
+        if target in ovpn_profs or target.startswith("tun"):
+            backend_target = "tun0"
+        elif target in awg_profs or target.startswith("awg"):
+            backend_target = "awg0"
+
         names = {
             "sing0": f"{TG_EMOJI_VLESS} VLESS (sing0)",
             "awg0": f"{TG_EMOJI_AMNEZIAWG} AmneziaWG (awg0)",
@@ -167,14 +175,14 @@ async def switch_vpn_callback(
             "wg0": f"{TG_EMOJI_WIREGUARD} WireGuard (wg0)",
             "auto": "Auto",
         }
-        target_name = names.get(target, target)
+        target_name = names.get(backend_target, target)
         try:
-            await query.answer(f"Switching to {target}...")
+            await query.answer(f"Switching to {target_name}...")
         except Exception:
             pass
 
         _, _, code = await loop.run_in_executor(
-            None, run_hotspot_command, ["--switch-vpn", target]
+            None, run_hotspot_command, ["--switch-vpn", backend_target]
         )
     await asyncio.sleep(2)
     status_text = await get_status_text()

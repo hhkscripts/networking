@@ -42,10 +42,8 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
         and rule_ok
         and (
             f"from {subnet} lookup {table}" in rule_out
-            or f"from {subnet} lookup github_vpn" in rule_out
             or f"from 10.42.0.0/24 lookup {table}" in rule_out
             or "from 10.42.0.0/24 lookup 100" in rule_out
-            or "from 10.42.0.0/24 lookup github_vpn" in rule_out
         )
     )
     if not policy_ok:

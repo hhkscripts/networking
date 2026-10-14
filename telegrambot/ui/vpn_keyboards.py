@@ -33,7 +33,7 @@ def make_switch_vpn_keyboard(
     # 1. Other VPN protocol buttons (AmneziaWG, OpenVPN, WireGuard)
     if available.get("awg0", False):
         awg_profiles = get_amnezia_profiles()
-        cb = "menu_awg" if len(awg_profiles) > 1 else f"switch_{awg_profiles[0][0]}"
+        cb = "menu_awg" if len(awg_profiles) > 1 else "switch_awg0"
         buttons.append(
             InlineKeyboardButton(
                 "AmneziaWG",
@@ -43,7 +43,7 @@ def make_switch_vpn_keyboard(
         )
     if available.get("tun0", False):
         ovpn_profiles = get_openvpn_profiles()
-        cb = "menu_ovpn" if len(ovpn_profiles) > 1 else f"switch_{ovpn_profiles[0][0]}"
+        cb = "menu_ovpn" if len(ovpn_profiles) > 1 else "switch_tun0"
         buttons.append(
             InlineKeyboardButton(
                 "OpenVPN",

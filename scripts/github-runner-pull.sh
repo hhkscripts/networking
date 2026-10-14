@@ -42,6 +42,10 @@ if [ -d "$REPO_DIR/configs/routes" ]; then
   $SUDO_CMD mkdir -p /etc/goodwifi/routes 2>/dev/null || true
   $SUDO_CMD cp -rf "$REPO_DIR/configs/routes/"* /etc/goodwifi/routes/ 2>/dev/null || true
 fi
+if [ -f "$REPO_DIR/scripts/github-vpn-routes.sh" ]; then
+  $SUDO_CMD cp -f "$REPO_DIR/scripts/github-vpn-routes.sh" /usr/local/bin/github-vpn-routes.sh 2>/dev/null || true
+  $SUDO_CMD chmod 0755 /usr/local/bin/github-vpn-routes.sh 2>/dev/null || true
+fi
 if [ -f "$REPO_DIR/scripts/apply-routes.sh" ]; then
   $SUDO_CMD cp -f "$REPO_DIR/scripts/apply-routes.sh" /usr/local/bin/apply-routes.sh 2>/dev/null || true
   $SUDO_CMD chmod 0755 /usr/local/bin/apply-routes.sh 2>/dev/null || true
@@ -51,4 +55,17 @@ if [ -f "$REPO_DIR/configs/90-hotspot-vpn-policy" ]; then
   $SUDO_CMD cp -f "$REPO_DIR/configs/90-hotspot-vpn-policy" /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy 2>/dev/null || true
   $SUDO_CMD chmod 0755 /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy 2>/dev/null || true
   $SUDO_CMD /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy apply 2>/dev/null || true
+fi
+
+# Clean up legacy ipsets and config keys on Pi host if migrating
+if [ -f /etc/goodwifi/goodwifi.conf ]; then
+  $SUDO_CMD sed -i '/^GITHUB_IPSET=/d' /etc/goodwifi/goodwifi.conf 2>/dev/null || true
+fi
+if command -v ipset >/dev/null 2>&1; then
+  for legacy_set in github_vpn_routes local_bypass_domains; do
+    if $SUDO_CMD ipset list "$legacy_set" >/dev/null 2>&1; then
+      $SUDO_CMD ipset flush "$legacy_set" 2>/dev/null || true
+      $SUDO_CMD ipset destroy "$legacy_set" 2>/dev/null || true
+    fi
+  done
 fi

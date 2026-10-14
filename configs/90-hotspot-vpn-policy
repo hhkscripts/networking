@@ -19,10 +19,8 @@ MANAGEMENT_RULE_PRIORITY="${MANAGEMENT_RULE_PRIORITY:-997}"
 FWMARK="${FWMARK:-100}"
 BYPASS_FWMARK="${BYPASS_FWMARK:-101}"
 VPN_IPSET="${VPN_IPSET:-vpn_domains}"
-VPN_ROUTES_IPSET="${VPN_ROUTES_IPSET:-${GITHUB_IPSET:-vpn_routes}}"
-LOCAL_ROUTES_IPSET="${LOCAL_ROUTES_IPSET:-${LOCAL_BYPASS_IPSET:-local_routes}}"
-GITHUB_IPSET="$VPN_ROUTES_IPSET"
-LOCAL_BYPASS_IPSET="$LOCAL_ROUTES_IPSET"
+VPN_ROUTES_IPSET="${VPN_ROUTES_IPSET:-vpn_routes}"
+LOCAL_ROUTES_IPSET="${LOCAL_ROUTES_IPSET:-local_routes}"
 LEGACY_GITHUB_IPSET="github_vpn_routes"
 LEGACY_LOCAL_IPSET="local_bypass_domains"
 IPTABLES_CHAIN="${IPTABLES_CHAIN:-GOODWIFI_FORWARD}"
@@ -219,7 +217,7 @@ apply_policy() {
     ensure_filter_chain "$IPTABLES_CHAIN"
 
     remove_rule mangle OUTPUT -m set --match-set "$VPN_IPSET" dst -j MARK --set-mark "$FWMARK"
-    remove_rule mangle OUTPUT -m set --match-set "$GITHUB_IPSET" dst -j MARK --set-mark "$FWMARK"
+    remove_rule mangle OUTPUT -m set --match-set "$VPN_ROUTES_IPSET" dst -j MARK --set-mark "$FWMARK"
     for dns_ip in 8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1 9.9.9.9 149.112.112.112 208.67.222.222 208.67.220.220; do
         remove_rule mangle OUTPUT -d "$dns_ip" -p udp --dport 53 -j MARK --set-mark "$FWMARK"
         remove_rule mangle OUTPUT -d "$dns_ip" -p tcp --dport 53 -j MARK --set-mark "$FWMARK"
@@ -236,7 +234,7 @@ apply_policy() {
         remove_rule filter FORWARD -i "$LAN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
         remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$LAN_IF" -j MASQUERADE
     done
-    remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -o "$LAN_IF" -j MASQUERADE
+    remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark 0
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
@@ -285,14 +283,14 @@ apply_policy() {
         iptables -t nat -C POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$LAN_IF" -j MASQUERADE 2>/dev/null || \
             iptables -t nat -A POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$LAN_IF" -j MASQUERADE
     done
-    iptables -t nat -C POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -o "$LAN_IF" -j MASQUERADE 2>/dev/null || \
-        iptables -t nat -A POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -o "$LAN_IF" -j MASQUERADE
-    iptables -t mangle -C PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK" 2>/dev/null || \
-        iptables -t mangle -I PREROUTING 1 -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
+    iptables -t nat -C POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE
+    iptables -t mangle -C PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK" 2>/dev/null || \
+        iptables -t mangle -I PREROUTING 1 -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
     iptables -t mangle -C OUTPUT -m set --match-set "$VPN_IPSET" dst -j MARK --set-mark "$FWMARK" 2>/dev/null || \
         iptables -t mangle -A OUTPUT -m set --match-set "$VPN_IPSET" dst -j MARK --set-mark "$FWMARK"
-    iptables -t mangle -C OUTPUT -m set --match-set "$GITHUB_IPSET" dst -j MARK --set-mark "$FWMARK" 2>/dev/null || \
-        iptables -t mangle -A OUTPUT -m set --match-set "$GITHUB_IPSET" dst -j MARK --set-mark "$FWMARK"
+    iptables -t mangle -C OUTPUT -m set --match-set "$VPN_ROUTES_IPSET" dst -j MARK --set-mark "$FWMARK" 2>/dev/null || \
+        iptables -t mangle -A OUTPUT -m set --match-set "$VPN_ROUTES_IPSET" dst -j MARK --set-mark "$FWMARK"
     for dns_ip in 8.8.8.8 8.8.4.4 1.1.1.1 1.0.0.1 9.9.9.9 149.112.112.112 208.67.222.222 208.67.220.220; do
         iptables -t mangle -C OUTPUT -d "$dns_ip" -p udp --dport 53 -j MARK --set-mark "$FWMARK" 2>/dev/null || \
             iptables -t mangle -A OUTPUT -d "$dns_ip" -p udp --dport 53 -j MARK --set-mark "$FWMARK"
@@ -303,7 +301,7 @@ apply_policy() {
         iptables -t mangle -A OUTPUT -o "$VPN_IF" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1200
     iptables -t mangle -C POSTROUTING -o "$VPN_IF" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
         iptables -t mangle -A POSTROUTING -o "$VPN_IF" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
-    iptables -A "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$LAN_IF" -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_BYPASS_IPSET" dst -j ACCEPT
+    iptables -A "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$LAN_IF" -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j ACCEPT
     iptables -A "$IPTABLES_CHAIN" -i "$LAN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -m state --state RELATED,ESTABLISHED -j ACCEPT
     for subnet in $MANAGEMENT_SUBNETS; do
         target_dev="$(ip route get "${subnet%/*}" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1); exit}')"

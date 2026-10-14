@@ -7,6 +7,9 @@ tailscale.com
 pkgs.tailscale.com
 login.tailscale.com
 controlplane.tailscale.com
+tailscale.io
+log.tailscale.io
+derp.tailscale.com
 
 # Debian & Raspberry Pi Mirrors
 deb.debian.org
@@ -14,11 +17,34 @@ security.debian.org
 archive.debian.org
 archive.raspberrypi.com
 raspbian.raspberrypi.org
+archive.ubuntu.com
+security.ubuntu.com
 
 # Debian / Fastly Mirror IPv4 CIDRs
 151.101.0.0/16
 199.232.0.0/16
 
-# Developer Package Repositories (Docker, NodeSource)
+# Developer Package Repositories (Docker, NodeSource, NPM, PyPI, Rust, Go)
 download.docker.com
+docker.com
+docker.io
+registry-1.docker.io
+auth.docker.io
 deb.nodesource.com
+nodejs.org
+registry.npmjs.org
+pypi.org
+files.pythonhosted.org
+pypi.python.org
+crates.io
+static.rust-lang.org
+sh.rustup.rs
+golang.org
+go.dev
+proxy.golang.org
+
+# AI, Model & Developer Tools
+huggingface.co
+hf.co
+nousresearch.com
+trycua.com
