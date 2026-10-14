@@ -133,8 +133,12 @@ class AdGuardStateTests(unittest.TestCase):
         from pathlib import Path
 
         blocklist_path = (
-            Path(__file__).parents[2] / "configs" / "routes" / "doh-blocklist.txt"
+            Path(__file__).parents[2] / "configs" / "routes" / "dns-doh-blocklist.txt"
         )
+        if not blocklist_path.exists():
+            blocklist_path = (
+                Path(__file__).parents[2] / "configs" / "routes" / "doh-blocklist.txt"
+            )
         self.assertTrue(blocklist_path.exists())
         content = blocklist_path.read_text(encoding="utf-8")
         self.assertIn("mask.icloud.com", content)

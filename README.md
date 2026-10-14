@@ -185,7 +185,7 @@ GoodWifi clients query `10.42.0.1:53` for DNS. AdGuard Home performs ad-blocking
 ### DoH & Apple Private Relay Protection
 To ensure mobile devices cannot bypass policy routing via encrypted DNS:
 - **DNS-over-TLS (Port 853)**: Hard-rejected via `iptables` in `90-hotspot-vpn-policy`, forcing Android Private DNS to fail over to standard DHCP DNS.
-- **DNS-over-HTTPS (DoH)**: Public DoH bootstrap domains (`cloudflare-dns.com`, `dns.google`, `dns.quad9.net`, etc.) are blocked via AdGuard Home rules (`configs/routes/doh-blocklist.txt`).
+- **DNS-over-HTTPS (DoH)**: Public DoH bootstrap domains (`cloudflare-dns.com`, `dns.google`, `dns.quad9.net`, etc.) are blocked via AdGuard Home rules (`configs/routes/dns-doh-blocklist.txt`).
 - **Apple iCloud Private Relay**: `mask.icloud.com` and `mask-h2.icloud.com` are blocked, which triggers Apple devices to gracefully disable Private Relay on GoodWifi Wi-Fi as per Apple specifications.
 
 ### Verifying DNS & Ipsets

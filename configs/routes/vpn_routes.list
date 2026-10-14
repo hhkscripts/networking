@@ -1,6 +1,6 @@
 # Route files included in vpn_routes (Active VPN Tunnel)
 # Comment out any file you wish to disable, or add new file paths here.
-github-routes.txt
-linux-repo-routes.txt
-telegram-routes.txt
-custom-vpn-routes.txt
+vpn-github.txt
+vpn-linux-repo.txt
+vpn-telegram.txt
+vpn-custom.txt

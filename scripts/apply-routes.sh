@@ -256,7 +256,10 @@ if [ -n "$ADGUARD_CONF_DIR" ] && [ -d "$ADGUARD_CONF_DIR" ]; then
         fi
 
         # Ensure DoH and Apple iCloud Private Relay blocking rules in user_rules
-        doh_file="$ROUTES_DIR/doh-blocklist.txt"
+        doh_file="$ROUTES_DIR/dns-doh-blocklist.txt"
+        if [ ! -f "$doh_file" ] && [ -f "$ROUTES_DIR/doh-blocklist.txt" ]; then
+            doh_file="$ROUTES_DIR/doh-blocklist.txt"
+        fi
         if [ -f "$doh_file" ] && ! grep -q "mask\.icloud\.com" "$adguard_yaml" 2>/dev/null; then
             if grep -q "^user_rules:[[:space:]]*\[\]" "$adguard_yaml" 2>/dev/null; then
                 sed -i 's/^user_rules:[[:space:]]*\[\]/user_rules:/' "$adguard_yaml"
