@@ -199,8 +199,11 @@ def wait_for_interface(interface: str, timeout: int = 60) -> bool:
     runner = getattr(ctx, "run_args", run_args)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        ok, _, _ = runner(["ip", "link", "show", "dev", interface])
-        if ok:
+        ok_addr, out_addr, _ = runner(["ip", "-4", "addr", "show", "dev", interface])
+        if ok_addr and "inet " in out_addr:
+            return True
+        ok, out, _ = runner(["ip", "link", "show", "dev", interface])
+        if ok and (not out or "UP" in out or "state UP" in out):
             return True
         time.sleep(1)
     return False

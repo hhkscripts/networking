@@ -175,5 +175,53 @@ class VpnResilienceWatchdogTests(unittest.TestCase):
             rst.assert_called_once_with("awg0")
 
 
+class ApplyVpnPolicyTests(unittest.TestCase):
+    def test_apply_vpn_policy_with_alias_table(self):
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["sudo", hotspot_manager.POLICY_SCRIPT]:
+                return True, "", ""
+            if cmd == ["ip", "route", "show", "table", "100"]:
+                return True, "default dev sing0 proto static scope link\n", ""
+            if cmd == ["ip", "rule", "show"]:
+                return (
+                    True,
+                    "0:\tfrom all lookup local\n"
+                    "1000:\tfrom 10.42.0.0/24 lookup github_vpn\n"
+                    "32766:\tfrom all lookup main\n",
+                    "",
+                )
+            return True, "", ""
+
+        with (
+            patch.object(hotspot_manager, "run_args", side_effect=fake_run),
+            patch.object(hotspot_manager, "log"),
+        ):
+            self.assertTrue(hotspot_manager.apply_vpn_policy("sing0"))
+
+    def test_apply_vpn_policy_retries_transient_route(self):
+        attempts = 0
+
+        def fake_run(cmd, **kwargs):
+            nonlocal attempts
+            if cmd[:2] == ["sudo", hotspot_manager.POLICY_SCRIPT]:
+                return True, "", ""
+            if cmd == ["ip", "route", "show", "table", "100"]:
+                attempts += 1
+                if attempts == 1:
+                    return True, "unreachable default metric 1024\n", ""
+                return True, "default dev sing0 proto static scope link\n", ""
+            if cmd == ["ip", "rule", "show"]:
+                return True, "1000:\tfrom 10.42.0.0/24 lookup 100\n", ""
+            return True, "", ""
+
+        with (
+            patch.object(hotspot_manager, "run_args", side_effect=fake_run),
+            patch.object(hotspot_manager.time, "sleep"),
+            patch.object(hotspot_manager, "log"),
+        ):
+            self.assertTrue(hotspot_manager.apply_vpn_policy("sing0"))
+        self.assertEqual(attempts, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

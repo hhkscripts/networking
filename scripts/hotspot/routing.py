@@ -3,7 +3,9 @@
 IP policy routing rules and route update scripts.
 """
 
-from typing import Optional
+import os
+import time
+from typing import Optional, Set
 
 from .constants import (
     APPLY_ROUTE_SCRIPT,
@@ -13,6 +15,24 @@ from .constants import (
 )
 from .context import Context
 from .runner import log, run_args
+
+
+def _get_routing_table_names(table: str = "100") -> Set[str]:
+    """Retrieve all valid alias names for the routing table ID."""
+    names = {str(table), "100", "github_vpn", "goodwifi", "vpn_routes"}
+    for path in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            parts = line.split()
+                            if len(parts) >= 2 and parts[0] == str(table):
+                                names.add(parts[1])
+            except Exception:
+                pass
+    return names
 
 
 def apply_vpn_policy(interface: Optional[str] = None) -> bool:
@@ -26,33 +46,52 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
     if not interface or interface == "auto":
         interface, _ = get_iface()
     target_iface = str(interface or "tun0")
-    ok, out, err = runner(["sudo", script, target_iface, "apply"])
-    if not ok:
-        detail = err or out or "unknown error"
-        logger(f"VPN policy apply failed: {detail}", "ERROR")
-        return False
 
     table = str(cfg.get("routing_table", 100))
     subnet = cfg.get("hotspot_subnet", "10.42.0.0/24")
-    route_ok, route_out, _ = runner(["ip", "route", "show", "table", table])
-    rule_ok, rule_out, _ = runner(["ip", "rule", "show"])
-    policy_ok = (
-        route_ok
-        and (f"default dev {interface}" in route_out or "default dev" in route_out)
-        and rule_ok
-        and (
-            f"from {subnet} lookup {table}" in rule_out
-            or f"from 10.42.0.0/24 lookup {table}" in rule_out
-            or "from 10.42.0.0/24 lookup 100" in rule_out
+    valid_tables = _get_routing_table_names(table)
+
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        ok, out, err = runner(["sudo", script, target_iface, "apply"])
+        if not ok:
+            detail = err or out or "unknown error"
+            if attempt < max_attempts:
+                time.sleep(1)
+                continue
+            logger(f"VPN policy apply failed: {detail}", "ERROR")
+            return False
+
+        route_ok, route_out, _ = runner(["ip", "route", "show", "table", table])
+        rule_ok, rule_out, _ = runner(["ip", "rule", "show"])
+
+        has_default_route = route_ok and (
+            f"default dev {target_iface}" in route_out or "default dev" in route_out
         )
+
+        has_table_rule = False
+        if rule_ok and rule_out:
+            for line in rule_out.splitlines():
+                line_clean = " ".join(line.split())
+                if f"from {subnet}" in line_clean or "from 10.42.0.0/24" in line_clean:
+                    for t_name in valid_tables:
+                        if f"lookup {t_name}" in line_clean:
+                            has_table_rule = True
+                            break
+                if has_table_rule:
+                    break
+
+        if has_default_route and has_table_rule:
+            return True
+
+        if attempt < max_attempts:
+            time.sleep(1)
+
+    logger(
+        f"VPN policy apply did not install GoodWifi table {table} routing",
+        "ERROR",
     )
-    if not policy_ok:
-        logger(
-            f"VPN policy apply did not install GoodWifi table {table} routing",
-            "ERROR",
-        )
-        return False
-    return True
+    return False
 
 
 def refresh_routes() -> bool:

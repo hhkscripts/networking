@@ -259,7 +259,17 @@ apply_policy() {
             ip route replace default via "$LAN_GW" dev "$LAN_IF" metric 100 2>/dev/null || true
     fi
     ip route replace "$HOTSPOT_SUBNET" dev "$HOTSPOT_IF" table "$TABLE_ID" 2>/dev/null || true
-    ip route replace default dev "$VPN_IF" table "$TABLE_ID" 2>/dev/null || true
+    route_installed=0
+    for _ in 1 2 3 4 5; do
+        if ip route replace default dev "$VPN_IF" table "$TABLE_ID" 2>/dev/null; then
+            route_installed=1
+            break
+        fi
+        sleep 0.2
+    done
+    if [ "$route_installed" -eq 0 ]; then
+        ip route replace default dev "$VPN_IF" table "$TABLE_ID" 2>/dev/null || true
+    fi
     ip route replace unreachable default table "$TABLE_ID" metric 1024 2>/dev/null || true
 
     ip rule del from "$HOTSPOT_SUBNET" table "$TABLE_ID" priority "$RULE_PRIORITY" 2>/dev/null || true
