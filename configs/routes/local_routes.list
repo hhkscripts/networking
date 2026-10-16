@@ -2,6 +2,7 @@
 # Comment out any file you wish to disable, or add new file paths here.
 local-crypto.txt
 local-banking.txt
+local-telegram.txt
 # local-streaming.txt
 local-custom.txt
 

@@ -2,5 +2,5 @@
 # Comment out any file you wish to disable, or add new file paths here.
 vpn-github.txt
 vpn-linux-repo.txt
-vpn-telegram.txt
+# vpn-telegram.txt (moved to local_routes.list for fast local ISP bypass)
 vpn-custom.txt

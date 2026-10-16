@@ -236,6 +236,8 @@ def switch_unlimited_country(country: str, target_ip: Optional[str] = None) -> b
             upd_conf("UNLIMITED_COUNTRY", country)
             if getattr(ctx, "get_configured_backend")() != "sing0":
                 getattr(ctx, "switch_vpn")("sing0")
+            else:
+                runner(["sudo", "systemctl", "restart", "sing-box"], timeout=20)
             logger(f"Switched remote exit to {country.upper()}", "SUCCESS")
             return True
         logger(f"Remote switch failed: {msg}. Trying local fallback...", "WARN")
