@@ -35,7 +35,6 @@ detect_active_wan_if() {
     printf '%s\n' "eth0"
 }
 
-LAN_IF="$(detect_active_wan_if)"
 LAN_GW_OVERRIDE="${LAN_GW:-}"
 TABLE_ID="${TABLE_ID:-100}"
 RULE_PRIORITY="${RULE_PRIORITY:-1000}"
@@ -107,6 +106,8 @@ if [ -n "${1:-}" ]; then
 else
     ACTION="${2:-apply}"
 fi
+
+LAN_IF="$(detect_active_wan_if)"
 
 if [ -z "${VPN_IF:-}" ]; then
     if [ "$VPN_BACKEND" = "sing0" ]; then
