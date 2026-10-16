@@ -17,5 +17,4 @@ t.me
 web.telegram.org
 telegram.me
 telesco.pe
-fragment.com
 

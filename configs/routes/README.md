@@ -13,7 +13,7 @@ This directory contains modular domain and CIDR route definitions used by `scrip
                                     │    └── local-custom.txt
 Client DNS Query ──► AdGuard Home ──┤
                                     ├─── vpn_routes.list ────► [vpn_domains ipset]  ──► Active VPN (sing0/awg0/tun0)
-                                    │    ├── vpn-telegram.txt (includes fragment.com)
+                                    │    ├── vpn-fragment.txt (fragment.com for Premium/Stars)
                                     │    ├── vpn-github.txt
                                     │    ├── vpn-linux-repo.txt
                                     │    └── vpn-custom.txt
@@ -40,7 +40,7 @@ Domains and CIDRs that must bypass ISP censorship, DPI throttling, or geo-blocks
 
 | File | Description | Notable Domains / CIDRs |
 | :--- | :--- | :--- |
-| `vpn-telegram.txt` | Telegram Messenger, Bot API, and Fragment platform | `telegram.org`, `t.me`, `api.telegram.org`, `fragment.com`, Telegram CIDRs |
+| `vpn-fragment.txt` | Telegram Fragment platform (Premium, Stars) | `fragment.com` |
 | `vpn-github.txt` | GitHub developer services & raw assets | `github.com`, `raw.githubusercontent.com`, `ghcr.io` |
 | `vpn-linux-repo.txt` | Package mirrors, Tailscale, Docker, Rust, PyPI | `deb.debian.org`, `docker.com`, `tailscale.com`, Fastly CIDRs |
 | `vpn-custom.txt` | User-defined custom domains or CIDRs | Any user-added blocked websites |
@@ -52,6 +52,7 @@ Domains and CIDRs that bypass the VPN to maintain low latency, avoid geo-restric
 
 | File | Description | Notable Domains |
 | :--- | :--- | :--- |
+| `local-telegram.txt` | Telegram Messenger, Bot API | `telegram.org`, `t.me`, `api.telegram.org`, Telegram CIDRs |
 | `local-banking.txt` | Myanmar domestic banks & mobile wallets | KBZPay, WavePay, CB Pay, AYA Pay, Yoma, uabpay |
 | `local-crypto.txt` | Cryptocurrency exchanges & P2P trading | Binance, Bybit, OKX, Bitget, KuCoin, Gate.io |
 | `local-streaming.txt` | Optional domestic/regional streaming services | (Disabled by default) |

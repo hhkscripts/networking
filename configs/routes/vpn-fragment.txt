@@ -1,0 +1,3 @@
+# Telegram Fragment Platform (Auctions, Telegram Premium, Telegram Stars)
+# Routed through active VPN tunnel because Fragment is blocked by local ISP DPI.
+fragment.com
