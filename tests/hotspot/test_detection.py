@@ -101,6 +101,42 @@ class VpnConnectionDetectionTests(unittest.TestCase):
             self.assertEqual(clients[0]["ip"], "192.168.12.60")
             self.assertEqual(clients[0]["mac"], "12:34:56:78:9a:bc")
 
+    def test_get_active_wan_interface_from_default_route(self):
+        route_output = (
+            "default via 10.168.80.251 dev usb0 proto dhcp "
+            "src 10.168.80.31 metric 100\n"
+        )
+        with (
+            patch.dict(hotspot_manager.CONFIG, {"lan_if": ""}),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                return_value=(True, route_output, ""),
+            ),
+        ):
+            self.assertEqual(hotspot_manager.get_active_wan_interface(), "usb0")
+
+    def test_get_active_wan_interface_from_carrier_fallback(self):
+        with (
+            patch.dict(hotspot_manager.CONFIG, {"lan_if": "auto"}),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                side_effect=[
+                    (False, "", ""),  # ip route show default
+                    (False, "", ""),  # eth0 link
+                    (False, "", ""),  # eth0 addr
+                    (True, "state UP", ""),  # usb0 link
+                    (True, "inet 10.168.80.31/24", ""),  # usb0 addr
+                ],
+            ),
+        ):
+            self.assertEqual(hotspot_manager.get_active_wan_interface(), "usb0")
+
+    def test_get_active_wan_interface_explicit_config(self):
+        with patch.dict(hotspot_manager.CONFIG, {"lan_if": "eth1"}):
+            self.assertEqual(hotspot_manager.get_active_wan_interface(), "eth1")
+
 
 if __name__ == "__main__":
     unittest.main()

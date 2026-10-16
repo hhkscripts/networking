@@ -15,6 +15,7 @@ from tests.hotspot.test_vpn import (
     SingboxBackendTests,
     VpnResilienceWatchdogTests,
 )
+from tests.hotspot.test_wan import WanResilienceTests
 
 __all__ = [
     "RunArgsTests",
@@ -29,6 +30,7 @@ __all__ = [
     "CountryProfileTests",
     "RemoteVpsExitTests",
     "VpnResilienceWatchdogTests",
+    "WanResilienceTests",
 ]
 
 if __name__ == "__main__":

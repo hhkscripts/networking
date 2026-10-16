@@ -203,7 +203,7 @@ fi
 if [ "$DRY_RUN" -eq 0 ] && [ -s "$vpn_domains" ] && command -v getent >/dev/null 2>&1; then
     for target_domain in fragment.com api.telegram.org telegram.org t.me; do
         if grep -qx "$target_domain" "$vpn_domains" 2>/dev/null; then
-            getent ahostsv4 "$target_domain" 2>/dev/null | awk '{print $1}' | while IFS= read -r resolved_ip; do
+            (getent ahostsv4 "$target_domain" 2>/dev/null || true) | awk '{print $1}' | while IFS= read -r resolved_ip; do
                 if [ -n "$resolved_ip" ]; then
                     ipset add "$VPN_DOMAINS_IPSET" "$resolved_ip" -exist 2>/dev/null || true
                 fi

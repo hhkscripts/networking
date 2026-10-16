@@ -10,6 +10,7 @@ from typing import Optional
 
 from .constants import CONFIG, HotspotStatus, PingStatus
 from .context import Context
+from .routing import get_current_default_wan
 from .runner import (
     check_docker_container,
     check_service,
@@ -186,6 +187,7 @@ def get_status() -> HotspotStatus:
     chk_net = getattr(ctx, "check_internet", check_internet)
     chk_ping = getattr(ctx, "check_ping", check_ping)
     get_ipv6 = getattr(ctx, "get_configured_ipv6_mode", get_configured_ipv6_mode)
+    get_wan = getattr(ctx, "get_current_default_wan", get_current_default_wan)
 
     clients = chk_cli()
     vpn_connected = chk_vpn()
@@ -196,32 +198,41 @@ def get_status() -> HotspotStatus:
     if active_if == "sing0" and not external_ok and not internet_working:
         vpn_connected = False
 
+    wan_res = get_wan()
+    if isinstance(wan_res, tuple):
+        wan_if, wan_metric = wan_res
+    else:
+        wan_if = str(wan_res) if wan_res else None
+        wan_metric = 100 if wan_if == "eth0" else 50
+    wan_type = (
+        "Fiber"
+        if wan_if == "eth0"
+        else ("Mobile USB" if wan_if == "usb0" else ("WAN" if wan_if else "None"))
+    )
+
     services_status = {s: chk_svc(s) for s in cfg.get("services", [])}
-
-    adguard_candidates = [
-        cfg.get("adguard_container", "adguardhome"),
-        "adguardhome",
-        "adguard",
-    ]
-    for name in dict.fromkeys(adguard_candidates):
-        st = chk_container(name)
-        if st is not None:
-            services_status["adguard"] = st
-            break
-
-    bot_candidates = [
-        os.getenv("TELEGRAM_CONTAINER"),
-        cfg.get("telegram_container"),
-        "mpxraspberrypibot",
-        "telegrambot",
-        "vpn-telegrambot-1",
-        "vpn_telegrambot_1",
-    ]
-    for name in dict.fromkeys(c for c in bot_candidates if c):
-        st = chk_container(name)
-        if st is not None:
-            services_status["telegrambot"] = st
-            break
+    for svc, candidates in [
+        (
+            "adguard",
+            [cfg.get("adguard_container", "adguardhome"), "adguardhome", "adguard"],
+        ),
+        (
+            "telegrambot",
+            [
+                os.getenv("TELEGRAM_CONTAINER"),
+                cfg.get("telegram_container"),
+                "mpxraspberrypibot",
+                "telegrambot",
+                "vpn-telegrambot-1",
+                "vpn_telegrambot_1",
+            ],
+        ),
+    ]:
+        for name in dict.fromkeys(c for c in candidates if c):
+            st = chk_container(name)
+            if st is not None:
+                services_status[svc] = st
+                break
 
     return {
         "services": services_status,
@@ -234,6 +245,11 @@ def get_status() -> HotspotStatus:
             "external_ok": external_ok,
         },
         "hotspot": {"broadcasting": chk_hotspot(), "clients": clients},
+        "wan": {
+            "interface": wan_if,
+            "type": wan_type,
+            "metric": wan_metric,
+        },
         "dns_working": chk_dns(),
         "internet": internet_working,
         "ping": chk_ping(),

@@ -218,3 +218,31 @@ def get_connected_clients() -> list[dict]:
         ctx, "get_connected_clients_detailed", get_connected_clients_detailed
     )
     return get_clients_fn()
+
+
+def get_active_wan_interface() -> str:
+    """Detect active WAN uplink interface (eth0, usb0, etc.)."""
+    ctx = Context.get()
+    cfg = getattr(ctx, "CONFIG", CONFIG)
+    runner = getattr(ctx, "run_args", run_args)
+
+    configured = cfg.get("lan_if", "")
+    if configured and configured != "auto":
+        return configured
+
+    ok, out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
+    if ok and out:
+        for line in out.splitlines():
+            parts = line.split()
+            if "dev" in parts:
+                dev = parts[parts.index("dev") + 1]
+                if dev not in ["wlan0", "sing0", "awg0", "wg0", "tun0"]:
+                    return dev
+
+    for cand in ["eth0", "usb0", "eth1", "usb1"]:
+        ok_l, out_l, _ = runner(["ip", "link", "show", cand])
+        ok_a, out_a, _ = runner(["ip", "-4", "addr", "show", cand])
+        if ok_l and "state UP" in out_l and ok_a and "inet " in out_a:
+            return cand
+
+    return "eth0"

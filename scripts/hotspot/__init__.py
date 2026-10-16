@@ -42,6 +42,7 @@ from .constants import (
     HotspotStatus,
     PingStatus,
     VpnStatus,
+    WanStatus,
 )
 from .context import Context
 from .detection import (
@@ -49,11 +50,12 @@ from .detection import (
     check_vpn_external_ip,
     check_vpn_ip,
     get_active_vpn_interface,
+    get_active_wan_interface,
     get_connected_clients,
     get_vpn_connection_name,
     wait_for_interface,
 )
-from .formatter import print_status
+from .formatter import print_status, send_telegram_notification
 from .profiles import (
     get_country_profiles,
     get_next_profile_ip,
@@ -62,7 +64,15 @@ from .profiles import (
     parse_wg_endpoint,
     resolve_server_ips,
 )
-from .routing import apply_vpn_policy, refresh_github_routes, refresh_routes
+from .routing import (
+    apply_vpn_policy,
+    check_wan_reachability,
+    ensure_wan_resilience,
+    get_current_default_wan,
+    refresh_github_routes,
+    refresh_routes,
+    switch_wan_uplink,
+)
 from .runner import (
     check_docker_container,
     check_service,
@@ -155,14 +165,18 @@ __all__ = [
     "check_vpn",
     "check_vpn_external_ip",
     "check_vpn_ip",
+    "check_wan_reachability",
     "configure_dnsmasq_fallback",
     "ensure_adguard_resilience",
     "ensure_vpn_resilience",
+    "ensure_wan_resilience",
     "fix_hotspot",
     "format_clients",
     "generate_singbox_config",
     "get_active_vpn_interface",
+    "get_active_wan_interface",
     "get_adguard_enabled",
+    "get_current_default_wan",
     "get_configured_backend",
     "get_configured_ipv6_mode",
     "get_configured_unlimited_country",
@@ -196,12 +210,15 @@ __all__ = [
     "parse_ovpn_endpoint",
     "parse_wg_endpoint",
     "run_args",
+    "send_telegram_notification",
     "set_adguard_state",
     "set_ipv6_mode",
     "switch_reality_server",
     "switch_remote_vps_exit",
     "switch_unlimited_country",
+    "switch_wan_uplink",
     "switch_vpn",
     "update_goodwifi_conf",
     "wait_for_interface",
+    "WanStatus",
 ]

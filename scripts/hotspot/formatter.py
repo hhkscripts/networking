@@ -4,6 +4,9 @@ Status output formatting for Terminal and Telegram HTML.
 """
 
 import html
+import json
+import os
+import urllib.request
 
 from .constants import (
     CONFIG,
@@ -102,6 +105,16 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
         lines.append("")
 
         lines.append(f"<b>{EMOJI_GLOBE} NETWORK:</b>")
+        wan_info = status.get("wan")
+        if wan_info:
+            wan_if = wan_info.get("interface")
+            wan_type = wan_info.get("type", "WAN")
+            wan_icon = (
+                "🌐" if wan_if == "eth0" else ("📱" if wan_if == "usb0" else "⚠️")
+            )
+            wan_desc = f"{wan_type} ({wan_if})" if wan_if else "Disconnected"
+            lines.append(f"{wan_icon} Uplink: <code>{wan_desc}</code>")
+
         dns_ok = status["dns_working"]
         internet_ok = status["internet"]
         ping = status.get("ping", {})
@@ -176,6 +189,14 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
     output.append(f"    Clients: {status['hotspot']['clients']}")
 
     output.append(f"\n{Colors.BOLD}NETWORK:{Colors.RESET}")
+    wan_info = status.get("wan")
+    if wan_info:
+        wan_if = wan_info.get("interface")
+        wan_type = wan_info.get("type", "WAN")
+        wan_icon = "🌐" if wan_if == "eth0" else ("📱" if wan_if == "usb0" else "⚠️")
+        wan_desc = f"{wan_type} ({wan_if})" if wan_if else "Disconnected"
+        output.append(f"  {wan_icon} Uplink: {wan_desc}")
+
     dns_icon = "✅" if status["dns_working"] else "❌"
     output.append(
         f"  {dns_icon} DNS: {'Working' if status['dns_working'] else 'Failed'}"
@@ -199,3 +220,46 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
 
     output.append("=" * 55 + "\n")
     return "\n".join(output)
+
+
+def send_telegram_notification(message: str) -> bool:
+    """Send alert to Telegram admin users if bot credentials are configured."""
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    allowed = os.getenv("TELEGRAM_ALLOWED_USERS", "")
+    if not token or not allowed:
+        for env_path in [
+            "/home/hhk/Projects/vpn/telegrambot/.env",
+            "/opt/goodwifi/telegrambot/.env",
+            "/etc/goodwifi/telegram.env",
+        ]:
+            if os.path.exists(env_path):
+                try:
+                    with open(env_path, "r", encoding="utf-8") as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("TELEGRAM_BOT_TOKEN="):
+                                val = line.split("=", 1)[1].strip().strip("\"'")
+                                token = token or val
+                            elif line.startswith("TELEGRAM_ALLOWED_USERS="):
+                                val = line.split("=", 1)[1].strip().strip("\"'")
+                                allowed = allowed or val
+                except Exception:
+                    pass
+    if not token or not allowed:
+        return False
+    uids = [u.strip() for u in allowed.split(",") if u.strip().isdigit()]
+    sent = False
+    for uid in uids:
+        try:
+            req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                data=json.dumps(
+                    {"chat_id": uid, "text": message, "parse_mode": "HTML"}
+                ).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=3)
+            sent = True
+        except Exception:
+            pass
+    return sent

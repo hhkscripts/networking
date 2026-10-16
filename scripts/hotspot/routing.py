@@ -14,6 +14,7 @@ from .constants import (
     POLICY_SCRIPT,
 )
 from .context import Context
+from .formatter import send_telegram_notification
 from .runner import log, run_args
 
 
@@ -131,3 +132,139 @@ def refresh_routes() -> bool:
 
 # Backward-compatible alias for existing callers and external integrations
 refresh_github_routes = refresh_routes
+
+WAN_STATE_FILE = "/run/goodwifi-active-wan"
+
+
+def check_wan_reachability(
+    iface: str, target: str = "8.8.8.8", timeout: int = 2
+) -> bool:
+    """Test actual internet reachability through a specific WAN interface."""
+    ctx = Context.get()
+    runner = getattr(ctx, "run_args", run_args)
+
+    ok_l, out_l, _ = runner(["ip", "link", "show", "dev", iface])
+    if not ok_l or ("state UP" not in out_l and "UP" not in out_l):
+        return False
+
+    ok_a, out_a, _ = runner(["ip", "-4", "addr", "show", "dev", iface])
+    if not ok_a or "inet " not in out_a:
+        return False
+
+    ok_p, _, _ = runner(
+        ["ping", "-c", "2", "-W", str(timeout), "-I", iface, target],
+        timeout=timeout + 3,
+    )
+    return bool(ok_p)
+
+
+def get_current_default_wan() -> str:
+    """Return the device with the primary default route in main table."""
+    ctx = Context.get()
+    runner = getattr(ctx, "run_args", run_args)
+    ok, out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
+    if ok and out:
+        for line in out.splitlines():
+            parts = line.split()
+            if "dev" in parts:
+                dev = parts[parts.index("dev") + 1]
+                if dev not in ["wlan0", "sing0", "awg0", "wg0", "tun0"]:
+                    return dev
+    return "eth0"
+
+
+def switch_wan_uplink(target: str) -> bool:
+    """Switch primary default WAN route between eth0 and usb0."""
+    ctx = Context.get()
+    runner = getattr(ctx, "run_args", run_args)
+    logger = getattr(ctx, "log", log)
+    chk_wan = getattr(ctx, "check_wan_reachability", check_wan_reachability)
+    get_wan = getattr(ctx, "get_current_default_wan", get_current_default_wan)
+
+    target = target.lower().strip()
+    if target == "auto":
+        if chk_wan("eth0"):
+            target = "eth0"
+        elif chk_wan("usb0"):
+            target = "usb0"
+        else:
+            logger("Auto-WAN: neither eth0 nor usb0 reachable", "WARN")
+            return False
+
+    if target not in ["eth0", "usb0", "eth1", "usb1"]:
+        logger(f"Invalid WAN target: {target}", "ERROR")
+        return False
+
+    current_wan = get_wan()
+    current_state = ""
+    if os.path.exists(WAN_STATE_FILE):
+        try:
+            with open(WAN_STATE_FILE, "r", encoding="utf-8") as f:
+                current_state = f.read().strip()
+        except Exception:
+            pass
+
+    if target == current_wan and target == current_state:
+        return True
+
+    logger(f"Switching default WAN uplink to [{target}]...", "INFO")
+    m1 = "100" if target == "eth0" else "600"
+    m2 = "500" if target == "eth0" else "50"
+    runner(["sudo", "ip", "route", "replace", "default", "dev", "eth0", "metric", m1])
+    runner(["sudo", "ip", "route", "replace", "default", "dev", "usb0", "metric", m2])
+
+    try:
+        with open(WAN_STATE_FILE, "w", encoding="utf-8") as f:
+            f.write(target)
+    except Exception:
+        pass
+
+    getattr(ctx, "apply_vpn_policy", apply_vpn_policy)()
+    restart_fn = getattr(ctx, "restart_vpn", None)
+    if restart_fn:
+        restart_fn()
+
+    logger(f"Successfully switched WAN to [{target}]", "SUCCESS")
+    notify_fn = getattr(ctx, "send_telegram_notification", send_telegram_notification)
+    if target == "usb0":
+        notify_fn(
+            "⚠️ <b>GoodWifi WAN Alert</b>\n"
+            "Fiber (eth0) connection dropped.\n"
+            "Switched uplink to <b>Mobile USB (usb0)</b>."
+        )
+    elif target == "eth0" and current_wan and current_wan != "eth0":
+        notify_fn(
+            "✅ <b>GoodWifi WAN Alert</b>\n"
+            "Fiber (eth0) connection restored!\n"
+            "Switched uplink back to <b>Fiber (eth0)</b>."
+        )
+    return True
+
+
+def ensure_wan_resilience() -> tuple[bool, str]:
+    """Check WAN health and perform automatic failover or failback."""
+    ctx = Context.get()
+    logger = getattr(ctx, "log", log)
+    chk_wan = getattr(ctx, "check_wan_reachability", check_wan_reachability)
+    get_wan = getattr(ctx, "get_current_default_wan", get_current_default_wan)
+    sw_wan = getattr(ctx, "switch_wan_uplink", switch_wan_uplink)
+
+    current_wan = get_wan()
+    eth0_ok = chk_wan("eth0")
+    usb0_ok = chk_wan("usb0")
+
+    if current_wan != "eth0":
+        if eth0_ok and sw_wan("eth0"):
+            logger("Fiber (eth0) recovered! Failing back to Fiber...", "INFO")
+            return True, "wan_failed_back_to_fiber"
+        return (True, "wan_usb_active") if usb0_ok else (False, "wan_all_offline")
+
+    if eth0_ok:
+        return True, "wan_fiber_healthy"
+
+    logger("Fiber (eth0) internet down! Checking USB backup...", "WARN")
+    if usb0_ok and sw_wan("usb0"):
+        logger("Failing over to USB (usb0)...", "INFO")
+        return True, "wan_failed_over_to_usb"
+
+    return False, "wan_all_offline"

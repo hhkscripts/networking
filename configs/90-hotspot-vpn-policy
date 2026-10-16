@@ -9,7 +9,33 @@ VPN_BACKEND="${VPN_BACKEND:-auto}"
 HOTSPOT_IF="${HOTSPOT_IF:-wlan0}"
 HOTSPOT_SUBNET="${HOTSPOT_SUBNET:-10.42.0.0/24}"
 HOTSPOT_IP="${HOTSPOT_IP:-10.42.0.1}"
-LAN_IF="${LAN_IF:-eth0}"
+LAN_IF_CONFIGURED="${LAN_IF:-}"
+
+detect_active_wan_if() {
+    if [ -n "$LAN_IF_CONFIGURED" ] && [ "$LAN_IF_CONFIGURED" != "auto" ]; then
+        printf '%s\n' "$LAN_IF_CONFIGURED"
+        return
+    fi
+
+    # 1. Check default route device in table main
+    cand_wan="$(ip -4 route show default table main 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1); exit}')"
+    if [ -n "$cand_wan" ] && [ "$cand_wan" != "${HOTSPOT_IF:-wlan0}" ] && [ "$cand_wan" != "${VPN_IF:-}" ]; then
+        printf '%s\n' "$cand_wan"
+        return
+    fi
+
+    # 2. Check active carrier on eth0, then usb0, eth1, etc.
+    for iface in eth0 usb0 eth1 usb1; do
+        if ip link show "$iface" 2>/dev/null | grep -q "state UP" && ip -4 addr show "$iface" 2>/dev/null | grep -q "inet "; then
+            printf '%s\n' "$iface"
+            return
+        fi
+    done
+
+    printf '%s\n' "eth0"
+}
+
+LAN_IF="$(detect_active_wan_if)"
 LAN_GW_OVERRIDE="${LAN_GW:-}"
 TABLE_ID="${TABLE_ID:-100}"
 RULE_PRIORITY="${RULE_PRIORITY:-1000}"
@@ -27,6 +53,25 @@ IPTABLES_CHAIN="${IPTABLES_CHAIN:-GOODWIFI_FORWARD}"
 IP6TABLES_CHAIN="${IP6TABLES_CHAIN:-GOODWIFI6_FORWARD}"
 MANAGEMENT_SUBNETS="${MANAGEMENT_SUBNETS:-10.8.0.0/24 192.168.100.0/24 192.168.1.0/24}"
 IPV6_LEAK_PROTECTION="${IPV6_LEAK_PROTECTION:-reject}"
+
+detect_wan_subnet() {
+    dev="$1"
+    ip -4 -o addr show dev "$dev" 2>/dev/null | awk '
+        /inet / {
+            split($4, a, "/")
+            ip_addr = a[1]
+            prefix = a[2]
+            split(ip_addr, octets, ".")
+            if (prefix == "24") {
+                print octets[1] "." octets[2] "." octets[3] ".0/24"
+                exit
+            } else if (prefix != "") {
+                print octets[1] "." octets[2] "." octets[3] ".0/" prefix
+                exit
+            }
+        }
+    '
+}
 
 is_vpn_action() {
     case "$1" in
@@ -183,6 +228,13 @@ detect_lan_gw() {
 
 apply_policy() {
     LAN_GW="$(detect_lan_gw | awk 'NF {print; exit}')"
+    WAN_SUBNET="$(detect_wan_subnet "$LAN_IF")"
+    if [ -n "$WAN_SUBNET" ]; then
+        case " $MANAGEMENT_SUBNETS " in
+            *" $WAN_SUBNET "*) ;;
+            *) MANAGEMENT_SUBNETS="$MANAGEMENT_SUBNETS $WAN_SUBNET" ;;
+        esac
+    fi
 
     # Purge any WireGuard / AmneziaWG auto-routing rules that conflict with policy routing
     while ip -4 rule show 2>/dev/null | grep -q "lookup 51820"; do
@@ -208,10 +260,12 @@ apply_policy() {
         ipset destroy "$LEGACY_GITHUB_IPSET" 2>/dev/null || true
     fi
     if [ "$LOCAL_ROUTES_IPSET" != "$LEGACY_LOCAL_IPSET" ]; then
-        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -o "$LAN_IF" -j MASQUERADE
+        for wan in "$LAN_IF" eth0 usb0 eth1 usb1; do
+            remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -o "$wan" -j MASQUERADE
+            remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j ACCEPT
+        done
         remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
         remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j MARK --set-mark 0
-        remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$LAN_IF" -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j ACCEPT
         ipset destroy "$LEGACY_LOCAL_IPSET" 2>/dev/null || true
     fi
     ensure_filter_chain "$IPTABLES_CHAIN"
@@ -229,14 +283,20 @@ apply_policy() {
     remove_rule nat POSTROUTING -o "$VPN_IF" -j MASQUERADE
     remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$VPN_IF" -s "$HOTSPOT_SUBNET" -j ACCEPT
     remove_rule filter FORWARD -i "$VPN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -m state --state RELATED,ESTABLISHED -j ACCEPT
-    remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$LAN_IF" -j ACCEPT
-    remove_rule filter FORWARD -i "$LAN_IF" -o "$HOTSPOT_IF" -m state --state RELATED,ESTABLISHED -j ACCEPT
-    for subnet in $MANAGEMENT_SUBNETS; do
-        remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$LAN_IF" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
-        remove_rule filter FORWARD -i "$LAN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
-        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$LAN_IF" -j MASQUERADE
+    for wan in "$LAN_IF" eth0 usb0 eth1 usb1; do
+        remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$wan" -j ACCEPT
+        remove_rule filter FORWARD -i "$wan" -o "$HOTSPOT_IF" -m state --state RELATED,ESTABLISHED -j ACCEPT
+        remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j ACCEPT
+        remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -m state --state RELATED,ESTABLISHED -j ACCEPT
+        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$wan" -j MASQUERADE
+        for subnet in $MANAGEMENT_SUBNETS; do
+            remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
+            remove_rule filter FORWARD -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+            remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
+            remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+            remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$wan" -j MASQUERADE
+        done
     done
-    remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark 0
     remove_rule mangle PREROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
@@ -399,10 +459,31 @@ apply_policy() {
 }
 
 cleanup_policy() {
+    WAN_SUBNET="$(detect_wan_subnet "$LAN_IF")"
+    if [ -n "$WAN_SUBNET" ]; then
+        case " $MANAGEMENT_SUBNETS " in
+            *" $WAN_SUBNET "*) ;;
+            *) MANAGEMENT_SUBNETS="$MANAGEMENT_SUBNETS $WAN_SUBNET" ;;
+        esac
+    fi
+
     remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -o "$VPN_IF" -j MASQUERADE
     remove_rule nat POSTROUTING -o "$VPN_IF" -j MASQUERADE
-    remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE
-    remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -o "$LAN_IF" -j MASQUERADE
+    for wan in "$LAN_IF" eth0 usb0 eth1 usb1; do
+        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$wan" -j MASQUERADE
+        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -o "$wan" -j MASQUERADE
+        remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$wan" -j ACCEPT
+        remove_rule filter FORWARD -i "$wan" -o "$HOTSPOT_IF" -m state --state RELATED,ESTABLISHED -j ACCEPT
+        remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j ACCEPT
+        remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -m state --state RELATED,ESTABLISHED -j ACCEPT
+        for subnet in $MANAGEMENT_SUBNETS; do
+            remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
+            remove_rule filter FORWARD -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+            remove_rule "$IPTABLES_CHAIN" -i "$HOTSPOT_IF" -o "$wan" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
+            remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+            remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$wan" -j MASQUERADE
+        done
+    done
     remove_rule mangle PREROUTING -m set --match-set "$VPN_IPSET" dst -j MARK --set-mark "$FWMARK"
     remove_rule mangle PREROUTING -m set --match-set "$VPN_ROUTES_IPSET" dst -j MARK --set-mark "$FWMARK"
     remove_rule mangle OUTPUT -m set --match-set "$VPN_IPSET" dst -j MARK --set-mark "$FWMARK"
@@ -423,13 +504,6 @@ cleanup_policy() {
     remove_rule mangle FORWARD -i "$VPN_IF" -d "$HOTSPOT_SUBNET" -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
     remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$VPN_IF" -s "$HOTSPOT_SUBNET" -j ACCEPT
     remove_rule filter FORWARD -i "$VPN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -m state --state RELATED,ESTABLISHED -j ACCEPT
-    remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$LAN_IF" -j ACCEPT
-    remove_rule filter FORWARD -i "$LAN_IF" -o "$HOTSPOT_IF" -m state --state RELATED,ESTABLISHED -j ACCEPT
-    for subnet in $MANAGEMENT_SUBNETS; do
-        remove_rule filter FORWARD -i "$HOTSPOT_IF" -o "$LAN_IF" -s "$HOTSPOT_SUBNET" -d "$subnet" -j ACCEPT
-        remove_rule filter FORWARD -i "$LAN_IF" -o "$HOTSPOT_IF" -d "$HOTSPOT_SUBNET" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
-        remove_rule nat POSTROUTING -s "$HOTSPOT_SUBNET" -d "$subnet" -o "$LAN_IF" -j MASQUERADE
-    done
     remove_ip6_rule FORWARD -i "$HOTSPOT_IF" -j DROP
     remove_ip6_rule FORWARD -i "$HOTSPOT_IF" -j REJECT --reject-with icmp6-adm-prohibited
     remove_filter_chain "$IPTABLES_CHAIN"

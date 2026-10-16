@@ -50,7 +50,13 @@ class HotspotInfo(TypedDict):
     clients: int
 
 
-class HotspotStatus(TypedDict):
+class WanStatus(TypedDict, total=False):
+    interface: Optional[str]
+    type: str
+    metric: int
+
+
+class HotspotStatus(TypedDict, total=False):
     services: dict[str, bool]
     vpn: VpnStatus
     hotspot: HotspotInfo
@@ -58,6 +64,7 @@ class HotspotStatus(TypedDict):
     internet: bool
     ping: PingStatus
     ipv6_protection: str
+    wan: WanStatus
 
 
 CONFIG: Config = {

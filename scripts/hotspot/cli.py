@@ -121,6 +121,12 @@ def main() -> None:
         help="Check AdGuard container health and auto-failover to fallback DNS if down",
     )
     parser.add_argument(
+        "--wan",
+        dest="wan_target",
+        choices=["eth0", "usb0", "auto", "status"],
+        help="Switch active WAN uplink (eth0, usb0, auto) or query status",
+    )
+    parser.add_argument(
         "--telegram", action="store_true", help="Output in HTML format for Telegram"
     )
     parser.add_argument(
@@ -147,6 +153,7 @@ def main() -> None:
         or args.watchdog
         or args.watchdog_vpn
         or args.watchdog_dns
+        or (args.wan_target and args.wan_target != "status")
     )
     if mutating:
         lock_fd = _acquire_cli_lock()
@@ -165,10 +172,12 @@ def main() -> None:
         sys.exit(0 if ok else 1)
 
     if args.watchdog:
+        wan_fn = getattr(ctx, "ensure_wan_resilience", None)
+        wan_ok, wan_state = wan_fn() if wan_fn else (True, "wan_ok")
         vpn_ok, vpn_state = getattr(ctx, "ensure_vpn_resilience")()
         dns_ok, dns_state = getattr(ctx, "ensure_adguard_resilience")()
-        print(f"Watchdog: VPN={vpn_state}, DNS={dns_state}")
-        sys.exit(0 if (vpn_ok and dns_ok) else 1)
+        print(f"Watchdog: WAN={wan_state}, VPN={vpn_state}, DNS={dns_state}")
+        sys.exit(0 if (wan_ok and vpn_ok and dns_ok) else 1)
 
     if args.watchdog_dns:
         ok, state = getattr(ctx, "ensure_adguard_resilience")()
@@ -186,46 +195,28 @@ def main() -> None:
                 )
         sys.exit(0)
 
-    if args.unlimited_country:
-        success = getattr(ctx, "switch_unlimited_country")(args.unlimited_country)
+    def _exit_status(success: bool = True):
         output = getattr(ctx, "print_status")(
             getattr(ctx, "get_status")(), telegram_format=telegram_format
         )
         print(output)
         sys.exit(0 if success else 1)
 
+    if args.unlimited_country:
+        _exit_status(getattr(ctx, "switch_unlimited_country")(args.unlimited_country))
+
     if args.rotate_ip:
-        success = getattr(ctx, "rotate_unlimited_country_ip")()
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-        sys.exit(0 if success else 1)
+        _exit_status(getattr(ctx, "rotate_unlimited_country_ip")())
 
     if args.reality_server:
         num = "1" if args.reality_server in ["1", "server-1"] else "2"
-        success = getattr(ctx, "switch_reality_server")(num)
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-        sys.exit(0 if success else 1)
+        _exit_status(getattr(ctx, "switch_reality_server")(num))
 
     if args.switch_vpn:
-        success = getattr(ctx, "switch_vpn")(args.switch_vpn)
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-        sys.exit(0 if success else 1)
+        _exit_status(getattr(ctx, "switch_vpn")(args.switch_vpn))
 
     if args.set_ipv6:
-        success = getattr(ctx, "set_ipv6_mode")(args.set_ipv6)
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-        sys.exit(0 if success else 1)
+        _exit_status(getattr(ctx, "set_ipv6_mode")(args.set_ipv6))
 
     if args.set_adguard:
         success = False
@@ -239,25 +230,28 @@ def main() -> None:
             success = set_adg_fn(True)
         elif args.set_adguard == "status":
             enabled = getattr(ctx, "get_adguard_enabled")()
-            chk_container = getattr(
-                ctx, "check_docker_container", check_docker_container
-            )
-            st = chk_container(cfg.get("adguard_container", "adguardhome"))
-            state_str = "Running" if st else "Stopped"
-            config_str = "Enabled" if enabled else "Disabled"
-            print(f"AdGuard Config: {config_str} | Container: {state_str}")
+            chk_c = getattr(ctx, "check_docker_container", check_docker_container)
+            st = chk_c(cfg.get("adguard_container", "adguardhome"))
+            s_str = "Running" if st else "Stopped"
+            c_str = "Enabled" if enabled else "Disabled"
+            print(f"AdGuard Config: {c_str} | Container: {s_str}")
             sys.exit(0)
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-        sys.exit(0 if success else 1)
+        _exit_status(success)
+
+    if args.wan_target:
+        if args.wan_target == "status":
+            cur = getattr(ctx, "get_current_default_wan", lambda: "eth0")()
+            chk = getattr(ctx, "check_wan_reachability", lambda _: False)
+            e_st = "ONLINE" if chk("eth0") else "OFFLINE"
+            u_st = "ONLINE" if chk("usb0") else "OFFLINE"
+            print(f"Active WAN: {cur} | eth0 (Fiber): {e_st} | usb0 (USB): {u_st}")
+            sys.exit(0)
+        sw_fn = getattr(ctx, "switch_wan_uplink", None)
+        ok = sw_fn(args.wan_target) if sw_fn else False
+        sys.exit(0 if ok else 1)
 
     if args.status:
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
+        _exit_status(True)
 
     if args.clients:
         from .clients import format_clients
@@ -270,17 +264,11 @@ def main() -> None:
         if not getattr(ctx, "restart_vpn")():
             sys.exit(1)
 
-    if args.fix:
+    if args.fix or args.restart:
         if not getattr(ctx, "fix_hotspot")():
             sys.exit(1)
-        output = getattr(ctx, "print_status")(
-            getattr(ctx, "get_status")(), telegram_format=telegram_format
-        )
-        print(output)
-
-    if args.restart:
-        if not getattr(ctx, "fix_hotspot")():
-            sys.exit(1)
+        if args.fix:
+            _exit_status(True)
 
 
 if __name__ == "__main__":
