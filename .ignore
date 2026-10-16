@@ -1,0 +1,39 @@
+# Dependencies & Environments
+node_modules/
+**/node_modules/
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Python & Testing Caches
+__pycache__/
+**/__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+
+# Build & Runtime State
+dist/
+build/
+backup/
+backups/
+zig-cache/
+zig-out/
+adguard/work/
+adguard/conf/AdGuardHome.yaml
+
+# Profiles & Secrets
+profiles/
+.env*
+!*.example
+
+# Large logs & archives
+*.log
+*.zip
+*.tar*
+*.gz
