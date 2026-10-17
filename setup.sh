@@ -449,6 +449,7 @@ rm -f "$tmp_nm"
 
 copy_file "$CONFIG_DIR/20-hotspot-manager" /etc/NetworkManager/dispatcher.d/20-hotspot-manager 0755
 copy_file "$CONFIG_DIR/90-hotspot-vpn-policy" /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy 0755
+copy_file "$CONFIG_DIR/95-hotspot-wan-trigger" /etc/NetworkManager/dispatcher.d/95-hotspot-wan-trigger 0755
 copy_file "$CONFIG_DIR/goodwifi-watchdog.service" /etc/systemd/system/goodwifi-watchdog.service 0644
 copy_file "$CONFIG_DIR/goodwifi-watchdog.timer" /etc/systemd/system/goodwifi-watchdog.timer 0644
 copy_file "$CONFIG_DIR/goodwifi.logrotate" /etc/logrotate.d/goodwifi 0644

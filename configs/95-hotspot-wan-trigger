@@ -1,0 +1,19 @@
+#!/bin/sh
+# NetworkManager Dispatcher trigger for GoodWifi dynamic WAN failover/failback
+# Automatically switches uplink between Fiber (eth0) and Mobile USB (usb0) on interface events.
+
+DEV="$1"
+ACTION="$2"
+
+case "$DEV" in
+    usb*|eth*)
+        case "$ACTION" in
+            up|down|connectivity-change)
+                if [ -x /usr/local/bin/hotspot-manager.py ]; then
+                    # Run asynchronously in background so NetworkManager is never blocked
+                    (/usr/local/bin/hotspot-manager.py --wan auto >/dev/null 2>&1 &)
+                fi
+                ;;
+        esac
+        ;;
+esac

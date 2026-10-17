@@ -12,14 +12,28 @@ if [ ! -d "$REPO_DIR/.git" ]; then
   exit 1
 fi
 
-git config --global --add safe.directory "$REPO_DIR" || true
-git -C "$REPO_DIR" fetch --prune "$REMOTE" "$BRANCH"
-git -C "$REPO_DIR" checkout "$BRANCH"
-git -C "$REPO_DIR" reset --hard "$REMOTE/$BRANCH"
-git -C "$REPO_DIR" clean -fd
+# Determine git command to run (preserve user's SSH credentials if run with sudo)
+GIT_CMD=(git)
+if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  GIT_CMD=(sudo -u "$SUDO_USER" git)
+fi
 
-echo "Pulled $REMOTE/$BRANCH into $REPO_DIR"
-git -C "$REPO_DIR" rev-parse --short HEAD
+git config --global --add safe.directory "$REPO_DIR" 2>/dev/null || true
+if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  "${GIT_CMD[@]}" config --global --add safe.directory "$REPO_DIR" 2>/dev/null || true
+fi
+
+# Attempt git fetch/pull with graceful fallback if offline or auth fails
+if "${GIT_CMD[@]}" -C "$REPO_DIR" fetch --prune "$REMOTE" "$BRANCH" 2>/dev/null; then
+  "${GIT_CMD[@]}" -C "$REPO_DIR" checkout "$BRANCH"
+  "${GIT_CMD[@]}" -C "$REPO_DIR" reset --hard "$REMOTE/$BRANCH"
+  "${GIT_CMD[@]}" -C "$REPO_DIR" clean -fd
+  echo "Pulled $REMOTE/$BRANCH into $REPO_DIR"
+  "${GIT_CMD[@]}" -C "$REPO_DIR" rev-parse --short HEAD
+else
+  echo "⚠️ Warning: git fetch failed (offline or remote access error)." >&2
+  echo "Proceeding to synchronize existing local repository files to the system..." >&2
+fi
 
 # Sync scripts and routing configs to host system
 SUDO_CMD=""
@@ -55,6 +69,10 @@ if [ -f "$REPO_DIR/configs/90-hotspot-vpn-policy" ]; then
   $SUDO_CMD cp -f "$REPO_DIR/configs/90-hotspot-vpn-policy" /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy 2>/dev/null || true
   $SUDO_CMD chmod 0755 /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy 2>/dev/null || true
   $SUDO_CMD /etc/NetworkManager/dispatcher.d/90-hotspot-vpn-policy apply 2>/dev/null || true
+fi
+if [ -f "$REPO_DIR/configs/95-hotspot-wan-trigger" ]; then
+  $SUDO_CMD cp -f "$REPO_DIR/configs/95-hotspot-wan-trigger" /etc/NetworkManager/dispatcher.d/95-hotspot-wan-trigger 2>/dev/null || true
+  $SUDO_CMD chmod 0755 /etc/NetworkManager/dispatcher.d/95-hotspot-wan-trigger 2>/dev/null || true
 fi
 
 # Clean up legacy ipsets and config keys on Pi host if migrating
