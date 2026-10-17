@@ -19,8 +19,10 @@ if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]
 fi
 
 git config --global --add safe.directory "$REPO_DIR" 2>/dev/null || true
+git -C "$REPO_DIR" config core.hooksPath .githooks 2>/dev/null || true
 if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
   "${GIT_CMD[@]}" config --global --add safe.directory "$REPO_DIR" 2>/dev/null || true
+  "${GIT_CMD[@]}" -C "$REPO_DIR" config core.hooksPath .githooks 2>/dev/null || true
 fi
 
 # Attempt git fetch/pull with graceful fallback if offline or auth fails

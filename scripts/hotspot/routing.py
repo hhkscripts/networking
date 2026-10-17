@@ -24,10 +24,11 @@ def _get_routing_table_names(table: str = "100") -> Set[str]:
     for p in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
         if os.path.exists(p):
             try:
-                for line in open(p, encoding="utf-8"):
-                    parts = line.strip().split()
-                    if len(parts) >= 2 and parts[0] == str(table):
-                        names.add(parts[1])
+                with open(p, encoding="utf-8") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) >= 2 and parts[0] == str(table):
+                            names.add(parts[1])
             except Exception:
                 pass
     return names

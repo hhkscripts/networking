@@ -61,6 +61,8 @@ class StatusChecksTests(unittest.TestCase):
                 "run_args",
                 side_effect=[
                     (False, "", "No such device"),
+                    (False, "", "No such device"),
+                    (False, "", "No such device"),
                     (True, "Station aa:bb:cc:dd:ee:ff (on wlan1)\n", ""),
                 ],
             ) as mock_run,
@@ -68,8 +70,10 @@ class StatusChecksTests(unittest.TestCase):
             count = hotspot_manager.check_clients()
             self.assertEqual(count, 1)
             calls = [c[0][0] for c in mock_run.call_args_list]
-            self.assertEqual(calls[0], ["iw", "dev", "wlan0", "station", "dump"])
-            self.assertEqual(calls[1], ["iw", "dev", "wlan1", "station", "dump"])
+            dump_w0 = ["sudo", "iw", "dev", "wlan0", "station", "dump"]
+            dump_w1 = ["sudo", "iw", "dev", "wlan1", "station", "dump"]
+            self.assertEqual(calls[0], dump_w0)
+            self.assertEqual(calls[3], dump_w1)
 
 
 if __name__ == "__main__":

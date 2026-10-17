@@ -590,6 +590,8 @@ else
   log_warn "Then refresh routes with: sudo apply-routes.sh"
 fi
 
+git -C "$PROJECT_DIR" config core.hooksPath .githooks 2>/dev/null || true
+
 log_info "SETUP/APPLY COMPLETE"
 log_info "Backups for overwritten system files: $BACKUP_DIR"
 sudo /usr/local/bin/hotspot-manager.py --status
