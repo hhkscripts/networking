@@ -1,0 +1,35 @@
+# AI and Ripgrep Ignore File (.ignore)
+# Excludes bulky virtualenvs, caches, logs, and runtime data from AI context and ripgrep searches
+
+# Virtual Environments
+.venv/
+venv/
+telegrambot/.venv/
+telegrambot/venv/
+
+# Caches and Bytecode
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Backups and Artifacts
+backup/
+backups/
+dist/
+build/
+
+# Runtime states & Logs
+adguard/work/
+*.log
+/run/
+
+# Archives
+*.tar.gz
+*.tar
+*.zip
+*.gz
+*.xz

@@ -23,7 +23,7 @@ echo -e "${CYAN}=====================================================${NC}"
 FAILURES=0
 
 # 1. Check for Duplicate Files
-echo -e "\n${YELLOW}[1/6] Checking Duplicate Files & Hygiene...${NC}"
+echo -e "\n${YELLOW}[1/9] Checking Duplicate Files & Hygiene...${NC}"
 if [ -f "telegrambot/hotspot-manager.py" ]; then
     echo -e "${RED}❌ FAILED: Duplicate hotspot-manager.py found in telegrambot/!${NC}"
     FAILURES=$((FAILURES + 1))
@@ -32,7 +32,7 @@ else
 fi
 
 # 2. Syntax & Compilation Check
-echo -e "\n${YELLOW}[2/6] Checking Python Syntax & Compilation...${NC}"
+echo -e "\n${YELLOW}[2/9] Checking Python Syntax & Compilation...${NC}"
 BOT_PYTHONPATH="${REPO_ROOT}/telegrambot/.venv/lib/python3.11/site-packages:${REPO_ROOT}"
 SYNTAX_ERRORS=0
 while IFS= read -r pyfile; do
@@ -50,7 +50,7 @@ else
 fi
 
 # 3. File Size & Sweet Spot Architecture Check
-echo -e "\n${YELLOW}[3/6] Verifying Sweet Spot Line Counts (<300 lines)...${NC}"
+echo -e "\n${YELLOW}[3/9] Verifying Sweet Spot Line Counts (<300 lines)...${NC}"
 OVERSIZED=0
 while IFS= read -r pyfile; do
     LINES=$(wc -l < "$pyfile")
@@ -68,7 +68,7 @@ else
 fi
 
 # 4. Modular Test Suite Isolation & Runner Purity
-echo -e "\n${YELLOW}[4/6] Verifying Modular Test Suite Isolation...${NC}"
+echo -e "\n${YELLOW}[4/9] Verifying Modular Test Suite Isolation...${NC}"
 RUNNER_PURITY_FAILURES=0
 for runner in tests/test_telegram_bot.py tests/test_hotspot_manager.py; do
     if [ -f "$runner" ]; then
@@ -92,7 +92,7 @@ else
 fi
 
 # 5. Black Formatting Check
-echo -e "\n${YELLOW}[5/8] Checking Code Formatting (Black)...${NC}"
+echo -e "\n${YELLOW}[5/9] Checking Code Formatting (Black)...${NC}"
 if command -v black >/dev/null 2>&1; then
     if black --check scripts/ tests/ telegrambot/; then
         echo -e "${GREEN}✅ PASSED: Black code formatting verified.${NC}"
@@ -105,7 +105,7 @@ else
 fi
 
 # 6. Flake8 Linting Check
-echo -e "\n${YELLOW}[6/8] Checking Code Style & Linting (Flake8)...${NC}"
+echo -e "\n${YELLOW}[6/9] Checking Code Style & Linting (Flake8)...${NC}"
 if command -v flake8 >/dev/null 2>&1; then
     if flake8 scripts/ tests/ telegrambot/; then
         echo -e "${GREEN}✅ PASSED: Flake8 linting passed.${NC}"
@@ -117,8 +117,37 @@ else
     echo -e "${YELLOW}⚠️  Flake8 not installed, skipping.${NC}"
 fi
 
-# 7. Telegram Bot Unit Tests
-echo -e "\n${YELLOW}[7/8] Running Telegram Bot Unit Tests...${NC}"
+# 7. Shell Script Linting (ShellCheck)
+echo -e "\n${YELLOW}[7/9] Checking Shell Scripts (ShellCheck)...${NC}"
+if command -v shellcheck >/dev/null 2>&1; then
+    SHELL_SCRIPTS=(
+        .githooks/pre-commit
+        setup.sh
+        uninstall.sh
+        configs/20-hotspot-manager
+        configs/90-hotspot-vpn-policy
+        configs/95-hotspot-wan-trigger
+        scripts/openvpn-replay-wrapper
+        scripts/openvpn-diversion.sh
+        scripts/github-vpn-routes.sh
+        scripts/apply-routes.sh
+        scripts/github-runner-pull.sh
+        scripts/auto-commit.sh
+        tests/test-auto-commit.sh
+        tests/test-vpn-scripts.sh
+    )
+    if shellcheck "${SHELL_SCRIPTS[@]}"; then
+        echo -e "${GREEN}✅ PASSED: All shell scripts passed ShellCheck.${NC}"
+    else
+        echo -e "${RED}❌ FAILED: ShellCheck linting check failed.${NC}"
+        FAILURES=$((FAILURES + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠️  ShellCheck not installed, skipping.${NC}"
+fi
+
+# 8. Telegram Bot Unit Tests
+echo -e "\n${YELLOW}[8/9] Running Telegram Bot Unit Tests...${NC}"
 if env PYTHONHOME="" PYTHONPATH="$BOT_PYTHONPATH" python3 -m unittest -v tests/test_telegram_bot.py; then
     echo -e "${GREEN}✅ PASSED: All Telegram Bot unit tests succeeded.${NC}"
 else
@@ -126,8 +155,8 @@ else
     FAILURES=$((FAILURES + 1))
 fi
 
-# 8. Hotspot Manager & Routing Tests
-echo -e "\n${YELLOW}[8/8] Running Hotspot Manager & Script Tests...${NC}"
+# 9. Hotspot Manager & Routing Tests
+echo -e "\n${YELLOW}[9/9] Running Hotspot Manager & Script Tests...${NC}"
 if env PYTHONHOME= PYTHONPATH= python3 -m unittest -v tests/test_hotspot_manager.py; then
     echo -e "${GREEN}✅ PASSED: All Hotspot Manager unit tests succeeded.${NC}"
 else

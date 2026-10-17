@@ -43,6 +43,7 @@ Do NOT scan or grep the whole codebase for known features. Use this direct mappi
 | **Exit Countries** (`country`, `singbox`, `vless`, `reality`) | `scripts/hotspot/singbox.py`, `profiles.py` | `telegrambot/handlers/country.py` | `telegrambot/ui/country_keyboards.py` | `tests/hotspot/test_singbox.py` |
 | **IPv6 Protection** (`ipv6`, `drop`, `reject`) | `scripts/hotspot/adguard.py` | `telegrambot/handlers/ipv6.py` | `telegrambot/ui/ipv6_keyboards.py` | `tests/hotspot/test_ipv6.py` |
 | **Routing & Firewall** (`routing`, `iptables`, `policy`) | `scripts/hotspot/routing.py`, `90-hotspot-vpn-policy` | - | - | `tests/test-vpn-scripts.sh` |
+| **WAN Switching / Failover** (`wan`, `failover`, `eth0`, `usb0`, `mobile`, `fiber`) | `scripts/hotspot/routing.py`, `configs/95-hotspot-wan-trigger` | - | - | `tests/hotspot/test_wan.py` |
 | **Dynamic Emojis / Sticker Pack** (`emoji`, `sticker`, `flag`) | `telegrambot/core/dynamic_emojis.py` | `telegrambot/handlers/status.py` | `telegrambot/ui/dynamic_emojis.py` | `tests/bot/test_dynamic_emojis.py` |
 | **Text Router & Dispatch** (`menu`, `router`, `callback`) | - | `telegrambot/handlers/text_router.py` | `telegrambot/ui/main_keyboard.py` | `tests/bot/test_router.py` |
 | **Client Devices** (`clients`, `dhcp`, `mac`) | `scripts/hotspot/detection.py` | `telegrambot/handlers/maintenance.py` | - | `tests/hotspot/test_detection.py` |
@@ -56,4 +57,5 @@ Do NOT scan or grep the whole codebase for known features. Use this direct mappi
 4. **Zero Token Waste Navigation**: When addressing a specific feature (e.g. "switch vpn", "adguard"), jump directly to the target file from the Fast-Lookup Topic Matrix. Never perform broad multi-file searches or full-codebase scans.
 5. **Instant Analysis**: When asked to analyze, inspect, or test the codebase, run `analyze.sh` directly in bash rather than reading multiple files into context.
 6. **Modular Test Suites Strict Isolation**: Never dump test cases or unittest classes directly into root test runners (`tests/test_telegram_bot.py` or `tests/test_hotspot_manager.py`). Root runners are strictly thin suite aggregators (<40 lines). All new tests must be written in granular modular files (`tests/bot/test_*.py` mirroring `telegrambot/` and `tests/hotspot/test_*.py` mirroring `scripts/hotspot/`).
+7. **Multi-WAN & Routing Invariants**: Always verify end-to-end internet connectivity (ping/curl) rather than naive link carrier when testing Fiber reachability (degraded Fiber maintains carrier). Mobile USB tethering blocks ICMP; always use HTTP/TCP connect fallback. Always clean unmetered metric-0 routes when switching default WAN.
 

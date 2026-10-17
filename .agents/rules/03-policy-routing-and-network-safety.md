@@ -11,3 +11,9 @@
 - **Leak Protection Standards**:
   - IPv6 Leak Protection: Enforce `drop` or `reject` on forwarding rules to prevent IPv6 VPN bypass.
   - DNS Leak Protection: Hotspot clients must query AdGuard Home at `10.42.0.1:53` which routes upstream queries securely over encrypted upstream DNS.
+- **Multi-WAN & Failover Invariants**:
+  - **Green PON Light Pitfall**: A degraded Fiber connection often maintains physical carrier and local DHCP (`state UP`). Link-state checks are insufficient; actual internet reachability (ping/curl to external IP) is mandatory.
+  - **Android Tethering ICMP Drop**: Mobile carriers and Android tethering frequently drop ICMP ping packets (`Destination Host Unreachable`). Reachability tests must always include a lightweight HTTP/TCP connect fallback (`curl -Is --max-time 2 --interface <dev> http://1.1.1.1`).
+  - **Metric 0 Route Collision Trap**: Any unmetered default route (`metric 0`) on an inactive interface will override metered routes. When switching WAN, always delete unmetered default routes on all WAN interfaces and set primary to metric 50 and standby to metric 600.
+  - **Offline Resilience**: When Pi host is offline, never invoke scripts that rely strictly on remote git access without offline fallbacks.
+

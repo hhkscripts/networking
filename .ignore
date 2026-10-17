@@ -1,39 +1,35 @@
-# Dependencies & Environments
-node_modules/
-**/node_modules/
-venv/
+# AI and Ripgrep Ignore File (.ignore)
+# Excludes bulky virtualenvs, caches, logs, and runtime data from AI context and ripgrep searches
+
+# Virtual Environments
 .venv/
-**/venv/
-**/.venv/
+venv/
+telegrambot/.venv/
+telegrambot/venv/
 
-# Python & Testing Caches
+# Caches and Bytecode
 __pycache__/
-**/__pycache__/
-.mypy_cache/
+*.pyc
+*.pyo
 .pytest_cache/
-.ruff_cache/
-coverage/
-htmlcov/
+.mypy_cache/
 .coverage
-.coverage.*
+htmlcov/
 
-# Build & Runtime State
-dist/
-build/
+# Backups and Artifacts
 backup/
 backups/
-zig-cache/
-zig-out/
+dist/
+build/
+
+# Runtime states & Logs
 adguard/work/
-adguard/conf/AdGuardHome.yaml
-
-# Profiles & Secrets
-profiles/
-.env*
-!*.example
-
-# Large logs & archives
 *.log
+/run/
+
+# Archives
+*.tar.gz
+*.tar
 *.zip
-*.tar*
 *.gz
+*.xz
