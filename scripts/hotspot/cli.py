@@ -30,15 +30,25 @@ def _acquire_cli_lock():
     try:
         import time
 
-        fd = open(lock_file, "w")
+        fd = open(lock_file, "a+")
         start = time.time()
         while time.time() - start < 15:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fd.seek(0)
+                fd.truncate()
+                fd.write(f"PID={os.getpid()} CMD={' '.join(sys.argv)}\n")
+                fd.flush()
                 return fd
             except (BlockingIOError, OSError):
                 time.sleep(0.5)
-        return False
+        holder = ""
+        try:
+            fd.seek(0)
+            holder = fd.read().strip()
+        except Exception:
+            pass
+        return holder or False
     except Exception:
         return None
 
@@ -157,8 +167,9 @@ def main() -> None:
     )
     if mutating:
         lock_fd = _acquire_cli_lock()
-        if lock_fd is False:
-            print("Notice: Another hotspot task is in progress. Please retry.")
+        if lock_fd is False or isinstance(lock_fd, str):
+            detail = f" ({lock_fd})" if isinstance(lock_fd, str) and lock_fd else ""
+            print(f"Notice: Another hotspot task is in progress{detail}. Please retry.")
             sys.exit(1)
 
     if args.refresh_routes:
@@ -174,6 +185,12 @@ def main() -> None:
     if args.watchdog:
         wan_fn = getattr(ctx, "ensure_wan_resilience", None)
         wan_ok, wan_state = wan_fn() if wan_fn else (True, "wan_ok")
+        if not wan_ok:
+            print(
+                f"Watchdog: WAN={wan_state}, "
+                "VPN=wan_offline_skipped, DNS=wan_offline_skipped"
+            )
+            sys.exit(1)
         vpn_ok, vpn_state = getattr(ctx, "ensure_vpn_resilience")()
         dns_ok, dns_state = getattr(ctx, "ensure_adguard_resilience")()
         print(f"Watchdog: WAN={wan_state}, VPN={vpn_state}, DNS={dns_state}")

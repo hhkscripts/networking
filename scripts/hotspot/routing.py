@@ -15,7 +15,7 @@ from .constants import (
 )
 from .context import Context
 from .formatter import send_telegram_notification
-from .runner import log, run_args
+from .runner import log, run_args, update_goodwifi_conf
 
 
 def _get_routing_table_names(table: str = "100") -> Set[str]:
@@ -151,11 +151,33 @@ def check_wan_reachability(
     if not ok_a or "inet " not in out_a:
         return False
 
-    ok_p, _, _ = runner(
-        ["ping", "-c", "2", "-W", str(timeout), "-I", iface, target],
-        timeout=timeout + 3,
-    )
-    return bool(ok_p)
+    targets = [target] if target != "8.8.8.8" else ["8.8.8.8", "1.1.1.1"]
+    for tgt in targets:
+        ok_p, _, _ = runner(
+            ["ping", "-c", "2", "-W", str(timeout), "-I", iface, tgt],
+            timeout=timeout + 3,
+        )
+        if ok_p:
+            return True
+    return False
+
+
+def _get_dev_gateway(runner, dev: str) -> Optional[str]:
+    ok, out, _ = runner(["ip", "-4", "route", "show", "dev", dev])
+    if ok and out:
+        for line in out.splitlines():
+            parts = line.split()
+            if "via" in parts:
+                return parts[parts.index("via") + 1]
+    return None
+
+
+def _route_cmd(dev: str, gw: Optional[str], metric: str) -> list[str]:
+    cmd = ["sudo", "ip", "route", "replace", "default"]
+    if gw:
+        cmd.extend(["via", gw])
+    cmd.extend(["dev", dev, "metric", metric])
+    return cmd
 
 
 def get_current_default_wan() -> str:
@@ -210,14 +232,15 @@ def switch_wan_uplink(target: str) -> bool:
     logger(f"Switching default WAN uplink to [{target}]...", "INFO")
     m1 = "100" if target == "eth0" else "600"
     m2 = "500" if target == "eth0" else "50"
-    runner(["sudo", "ip", "route", "replace", "default", "dev", "eth0", "metric", m1])
-    runner(["sudo", "ip", "route", "replace", "default", "dev", "usb0", "metric", m2])
+    runner(_route_cmd("eth0", _get_dev_gateway(runner, "eth0"), m1))
+    runner(_route_cmd("usb0", _get_dev_gateway(runner, "usb0"), m2))
 
     try:
         with open(WAN_STATE_FILE, "w", encoding="utf-8") as f:
             f.write(target)
     except Exception:
         pass
+    getattr(ctx, "update_goodwifi_conf", update_goodwifi_conf)("LAN_IF", target)
 
     getattr(ctx, "apply_vpn_policy", apply_vpn_policy)()
     restart_fn = getattr(ctx, "restart_vpn", None)
