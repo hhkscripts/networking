@@ -14,7 +14,7 @@ LAN_IF_CONFIGURED="${LAN_IF:-}"
 detect_active_wan_if() {
     # 0. Check dynamic WAN state file if active
     if [ -f "/run/goodwifi-active-wan" ]; then
-        active_wan="$(cat /run/goodwifi-active-wan 2>/dev/null | tr -d ' \n\r')"
+        active_wan="$(tr -d ' \n\r' < /run/goodwifi-active-wan 2>/dev/null)"
         if [ -n "$active_wan" ]; then
             printf '%s\n' "$active_wan"
             return
