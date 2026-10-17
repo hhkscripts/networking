@@ -140,7 +140,7 @@ def _try_activate_endpoints(
     logger = getattr(ctx, "log", log)
     config_path = get_path("/etc/sing-box/config.json")
 
-    for cand_ip in candidate_ips[:4]:
+    for cand_ip in candidate_ips[:3]:
         cfg = gen_config(profile_path, target_ip=cand_ip)
         _write_json_config(config_path, cfg, runner)
         runner(["sudo", "systemctl", "restart", "sing-box"], timeout=20)
@@ -150,8 +150,8 @@ def _try_activate_endpoints(
         getattr(ctx, "ensure_adguard_resilience", lambda: None)()
 
         ok_ext = False
-        for _ in range(4):
-            time.sleep(2)
+        for _ in range(2):
+            time.sleep(1)
             ok_ext, _ = check_ext()
             if ok_ext:
                 break
