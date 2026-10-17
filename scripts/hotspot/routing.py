@@ -21,16 +21,13 @@ from .runner import log, run_args, update_goodwifi_conf
 def _get_routing_table_names(table: str = "100") -> Set[str]:
     """Retrieve all valid alias names for the routing table ID."""
     names = {str(table), "100", "github_vpn", "goodwifi", "vpn_routes"}
-    for path in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
-        if os.path.exists(path):
+    for p in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
+        if os.path.exists(p):
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith("#"):
-                            parts = line.split()
-                            if len(parts) >= 2 and parts[0] == str(table):
-                                names.add(parts[1])
+                for line in open(p, encoding="utf-8"):
+                    parts = line.strip().split()
+                    if len(parts) >= 2 and parts[0] == str(table):
+                        names.add(parts[1])
             except Exception:
                 pass
     return names
@@ -56,42 +53,28 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
     for attempt in range(1, max_attempts + 1):
         ok, out, err = runner(["sudo", script, target_iface, "apply"])
         if not ok:
-            detail = err or out or "unknown error"
             if attempt < max_attempts:
                 time.sleep(1)
                 continue
-            logger(f"VPN policy apply failed: {detail}", "ERROR")
+            logger(f"VPN policy apply failed: {err or out or 'unknown error'}", "ERROR")
             return False
 
         route_ok, route_out, _ = runner(["ip", "route", "show", "table", table])
         rule_ok, rule_out, _ = runner(["ip", "rule", "show"])
-
-        has_default_route = route_ok and (
+        has_default = route_ok and (
             f"default dev {target_iface}" in route_out or "default dev" in route_out
         )
-
-        has_table_rule = False
-        if rule_ok and rule_out:
-            for line in rule_out.splitlines():
-                line_clean = " ".join(line.split())
-                if f"from {subnet}" in line_clean or "from 10.42.0.0/24" in line_clean:
-                    for t_name in valid_tables:
-                        if f"lookup {t_name}" in line_clean:
-                            has_table_rule = True
-                            break
-                if has_table_rule:
-                    break
-
-        if has_default_route and has_table_rule:
+        has_rule = any(
+            (f"from {subnet}" in line or "from 10.42.0.0/24" in line)
+            and any(f"lookup {t}" in line for t in valid_tables)
+            for line in (rule_out or "").splitlines()
+        )
+        if has_default and has_rule:
             return True
-
         if attempt < max_attempts:
             time.sleep(1)
 
-    logger(
-        f"VPN policy apply did not install GoodWifi table {table} routing",
-        "ERROR",
-    )
+    logger(f"VPN policy apply did not install GoodWifi table {table} routing", "ERROR")
     return False
 
 
@@ -108,25 +91,13 @@ def refresh_routes() -> bool:
     ap_script = getattr(ctx, "APPLY_ROUTE_SCRIPT", APPLY_ROUTE_SCRIPT)
 
     all_ok = True
-
-    # 1. Primary: Apply modular local_routes & vpn_routes via apply-routes.sh
-    ok, _, _ = runner(["test", "-x", ap_script])
-    if ok:
-        ap_ok, _, err = runner(["sudo", ap_script], timeout=60)
-        if not ap_ok:
-            all_ok = False
-            detail = f": {err}" if err else ""
-            logger(f"Route apply failed{detail}", "WARN")
-
-    # 2. Secondary: Refresh published GitHub CIDRs into vpn_routes if script present
-    ok, _, _ = runner(["test", "-x", gh_script])
-    if ok:
-        gh_ok, _, err = runner(["sudo", gh_script], timeout=120)
-        if not gh_ok:
-            all_ok = False
-            detail = f": {err}" if err else ""
-            logger(f"GitHub route refresh failed{detail}", "WARN")
-
+    scripts = [(ap_script, "Route apply", 60), (gh_script, "GitHub route refresh", 120)]
+    for script, name, to in scripts:
+        if runner(["test", "-x", script])[0]:
+            s_ok, _, err = runner(["sudo", script], timeout=to)
+            if not s_ok:
+                all_ok = False
+                logger(f"{name} failed: {err}" if err else f"{name} failed", "WARN")
     return all_ok
 
 
@@ -146,18 +117,23 @@ def check_wan_reachability(
     ok_l, out_l, _ = runner(["ip", "link", "show", "dev", iface])
     if not ok_l or ("state UP" not in out_l and "UP" not in out_l):
         return False
-
     ok_a, out_a, _ = runner(["ip", "-4", "addr", "show", "dev", iface])
     if not ok_a or "inet " not in out_a:
         return False
 
     targets = [target] if target != "8.8.8.8" else ["8.8.8.8", "1.1.1.1"]
     for tgt in targets:
-        ok_p, _, _ = runner(
-            ["ping", "-c", "2", "-W", str(timeout), "-I", iface, tgt],
-            timeout=timeout + 3,
-        )
-        if ok_p:
+        p_cmd = ["ping", "-c", "2", "-W", str(timeout), "-I", iface, tgt]
+        c_cmd = [
+            "curl",
+            "-Is",
+            "--max-time",
+            "2",
+            "--interface",
+            iface,
+            f"http://{tgt}",
+        ]
+        if runner(p_cmd, timeout=timeout + 3)[0] or runner(c_cmd, timeout=4)[0]:
             return True
     return False
 
@@ -169,7 +145,28 @@ def _get_dev_gateway(runner, dev: str) -> Optional[str]:
             parts = line.split()
             if "via" in parts:
                 return parts[parts.index("via") + 1]
-    return None
+    ok_nm, out_nm, _ = runner(["nmcli", "-g", "IP4.GATEWAY", "dev", "show", dev])
+    return (
+        out_nm.strip().splitlines()[0] if ok_nm and out_nm and out_nm.strip() else None
+    )
+
+
+def _clean_routes_for_dev(runner, dev: str, is_primary: bool) -> None:
+    ok, out, _ = runner(["ip", "-4", "route", "show", "default", "dev", dev])
+    if not (ok and out):
+        return
+    for line in out.splitlines():
+        if (not is_primary and ("metric 50" in line or "metric" not in line)) or (
+            is_primary and "metric" not in line
+        ):
+            parts = line.split()
+            cmd = ["sudo", "ip", "route", "del", "default"]
+            if "via" in parts:
+                cmd.extend(["via", parts[parts.index("via") + 1]])
+            cmd.extend(["dev", dev])
+            if "metric" in parts and not is_primary:
+                cmd.extend(["metric", parts[parts.index("metric") + 1]])
+            runner(cmd)
 
 
 def _route_cmd(dev: str, gw: Optional[str], metric: str) -> list[str]:
@@ -186,12 +183,21 @@ def get_current_default_wan() -> str:
     runner = getattr(ctx, "run_args", run_args)
     ok, out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
     if ok and out:
+        best_dev, lowest_metric = None, 999999
         for line in out.splitlines():
             parts = line.split()
             if "dev" in parts:
                 dev = parts[parts.index("dev") + 1]
                 if dev not in ["wlan0", "sing0", "awg0", "wg0", "tun0"]:
-                    return dev
+                    m = (
+                        int(parts[parts.index("metric") + 1])
+                        if "metric" in parts
+                        else 0
+                    )
+                    if m < lowest_metric:
+                        lowest_metric, best_dev = m, dev
+        if best_dev:
+            return best_dev
     return "eth0"
 
 
@@ -218,22 +224,21 @@ def switch_wan_uplink(target: str) -> bool:
         return False
 
     current_wan = get_wan()
-    current_state = ""
+    cur_state = ""
     if os.path.exists(WAN_STATE_FILE):
         try:
-            with open(WAN_STATE_FILE, "r", encoding="utf-8") as f:
-                current_state = f.read().strip()
+            cur_state = open(WAN_STATE_FILE, encoding="utf-8").read().strip()
         except Exception:
             pass
 
-    if target == current_wan and target == current_state:
+    if target == current_wan and target == cur_state:
         return True
 
     logger(f"Switching default WAN uplink to [{target}]...", "INFO")
-    m1 = "100" if target == "eth0" else "600"
-    m2 = "500" if target == "eth0" else "50"
-    runner(_route_cmd("eth0", _get_dev_gateway(runner, "eth0"), m1))
-    runner(_route_cmd("usb0", _get_dev_gateway(runner, "usb0"), m2))
+    for dev in ["eth0", "usb0"]:
+        _clean_routes_for_dev(runner, dev, is_primary=(dev == target))
+        metric = "50" if dev == target else "600"
+        runner(_route_cmd(dev, _get_dev_gateway(runner, dev), metric))
 
     try:
         with open(WAN_STATE_FILE, "w", encoding="utf-8") as f:
@@ -241,7 +246,6 @@ def switch_wan_uplink(target: str) -> bool:
     except Exception:
         pass
     getattr(ctx, "update_goodwifi_conf", update_goodwifi_conf)("LAN_IF", target)
-
     getattr(ctx, "apply_vpn_policy", apply_vpn_policy)()
     restart_fn = getattr(ctx, "restart_vpn", None)
     if restart_fn:
@@ -252,14 +256,12 @@ def switch_wan_uplink(target: str) -> bool:
     if target == "usb0":
         notify_fn(
             "⚠️ <b>GoodWifi WAN Alert</b>\n"
-            "Fiber (eth0) connection dropped.\n"
-            "Switched uplink to <b>Mobile USB (usb0)</b>."
+            "Fiber (eth0) dropped. Uplink: <b>Mobile USB (usb0)</b>."
         )
     elif target == "eth0" and current_wan and current_wan != "eth0":
         notify_fn(
             "✅ <b>GoodWifi WAN Alert</b>\n"
-            "Fiber (eth0) connection restored!\n"
-            "Switched uplink back to <b>Fiber (eth0)</b>."
+            "Fiber (eth0) restored! Uplink: <b>Fiber (eth0)</b>."
         )
     return True
 
