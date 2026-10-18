@@ -291,4 +291,4 @@ def get_vless_servers() -> list[tuple[str, str]]:
                     return servers
             except Exception:
                 pass
-    return [("1", "VLESS S1 (198.71)"), ("2", "VLESS S2 (5.183)")]
+    return [("1", "VLESS S1 (198.71)")]

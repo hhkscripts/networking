@@ -147,8 +147,10 @@ async def switch_vpn_callback(
 
     if data.startswith("switch_reality_"):
         server_num = data.replace("switch_reality_", "")
-        server_ip = "198.71.50.129" if server_num == "1" else "5.183.9.86"
-        target_name = f"{TG_EMOJI_VLESS} VLESS Server {server_num} ({server_ip})"
+        vless_list = get_vless_servers()
+        server_dict = dict(vless_list)
+        server_label = server_dict.get(server_num, f"Server {server_num}")
+        target_name = f"{TG_EMOJI_VLESS} {server_label}"
         try:
             await query.answer(f"Switching to VLESS Server {server_num}...")
         except Exception:

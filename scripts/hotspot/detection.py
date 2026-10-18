@@ -181,7 +181,7 @@ def check_vpn_external_ip() -> tuple[bool, str]:
                     "-4",
                     "-s",
                     "--max-time",
-                    "3",
+                    "8",
                     "--interface",
                     candidate,
                     url,
