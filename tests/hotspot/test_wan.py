@@ -125,6 +125,11 @@ class WanResilienceTests(unittest.TestCase):
             ),
             patch.object(
                 hotspot_manager,
+                "check_wan_stability",
+                return_value=True,
+            ),
+            patch.object(
+                hotspot_manager,
                 "switch_wan_uplink",
                 return_value=True,
             ) as mock_switch,
@@ -133,6 +138,60 @@ class WanResilienceTests(unittest.TestCase):
             self.assertTrue(ok)
             self.assertEqual(state, "wan_failed_back_to_fiber")
             mock_switch.assert_called_with("eth0")
+
+    def test_ensure_wan_resilience_holds_on_unstable_fiber(self):
+        with (
+            patch.object(
+                hotspot_manager,
+                "get_current_default_wan",
+                return_value="usb0",
+            ),
+            patch.object(
+                hotspot_manager,
+                "check_wan_reachability",
+                return_value=True,
+            ),
+            patch.object(
+                hotspot_manager,
+                "check_wan_stability",
+                return_value=False,
+            ),
+            patch.object(
+                hotspot_manager,
+                "switch_wan_uplink",
+            ) as mock_switch,
+        ):
+            ok, state = hotspot_manager.ensure_wan_resilience()
+            self.assertTrue(ok)
+            self.assertEqual(state, "wan_usb_active")
+            mock_switch.assert_not_called()
+
+    def test_ensure_wan_resilience_manual_mode_locks_usb(self):
+        with (
+            patch.object(
+                hotspot_manager,
+                "get_current_default_wan",
+                return_value="usb0",
+            ),
+            patch.object(
+                hotspot_manager,
+                "get_wan_mode",
+                return_value="manual",
+            ),
+            patch.object(
+                hotspot_manager,
+                "check_wan_reachability",
+                return_value=True,
+            ),
+            patch.object(
+                hotspot_manager,
+                "switch_wan_uplink",
+            ) as mock_switch,
+        ):
+            ok, state = hotspot_manager.ensure_wan_resilience()
+            self.assertTrue(ok)
+            self.assertEqual(state, "wan_usb_manual")
+            mock_switch.assert_not_called()
 
     def test_ensure_wan_resilience_all_offline(self):
         with (
@@ -152,47 +211,27 @@ class WanResilienceTests(unittest.TestCase):
             self.assertEqual(state, "wan_all_offline")
 
     def test_wan_in_get_status(self):
-        with (
-            patch.object(
-                hotspot_manager,
-                "get_current_default_wan",
-                return_value="eth0",
-            ),
-            patch.object(hotspot_manager, "check_clients", return_value=3),
-            patch.object(hotspot_manager, "check_vpn", return_value=True),
-            patch.object(
-                hotspot_manager,
-                "get_active_vpn_interface",
-                return_value=("sing0", "sing-box"),
-            ),
-            patch.object(
-                hotspot_manager,
-                "check_vpn_ip",
-                return_value=(True, "10.99.0.1"),
-            ),
-            patch.object(
-                hotspot_manager,
-                "check_vpn_external_ip",
-                return_value=(True, "1.2.3.4"),
-            ),
-            patch.object(hotspot_manager, "check_internet", return_value=True),
-            patch.object(hotspot_manager, "check_dns", return_value=True),
-            patch.object(hotspot_manager, "check_hotspot", return_value=True),
-            patch.object(
-                hotspot_manager,
-                "check_ping",
-                return_value={
-                    "ok": True,
-                    "target": "8.8.8.8",
-                    "summary": "ok",
-                    "avg_ms": "10",
-                    "loss": "0",
-                    "rtt": "",
-                },
-            ),
-            patch.object(hotspot_manager, "check_service", return_value=True),
-            patch.object(hotspot_manager, "check_docker_container", return_value=True),
-        ):
+        patches = {
+            "get_current_default_wan": lambda: "eth0",
+            "check_clients": lambda: 3,
+            "check_vpn": lambda: True,
+            "get_active_vpn_interface": lambda: ("sing0", "sing-box"),
+            "check_vpn_ip": lambda: (True, "10.99.0.1"),
+            "check_vpn_external_ip": lambda: (True, "1.2.3.4"),
+            "check_internet": lambda: True,
+            "check_dns": lambda: True,
+            "check_hotspot": lambda: True,
+            "check_ping": lambda: {
+                "ok": True,
+                "target": "8.8.8.8",
+                "summary": "ok",
+                "avg_ms": "10",
+                "loss": "0",
+            },
+            "check_service": lambda _: True,
+            "check_docker_container": lambda _: True,
+        }
+        with patch.multiple(hotspot_manager, **patches):
             status = hotspot_manager.get_status()
             self.assertIn("wan", status)
             self.assertEqual(status["wan"]["interface"], "eth0")

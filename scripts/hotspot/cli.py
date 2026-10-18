@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Command Line Interface parser and dispatcher for Hotspot Manager.
-"""
+"""Command Line Interface parser and dispatcher for Hotspot Manager."""
 
 import argparse
 import json
@@ -258,13 +256,18 @@ def main() -> None:
     if args.wan_target:
         if args.wan_target == "status":
             cur = getattr(ctx, "get_current_default_wan", lambda: "eth0")()
+            mode = getattr(ctx, "get_wan_mode", lambda: "auto")()
             chk = getattr(ctx, "check_wan_reachability", lambda _: False)
             e_st = "ONLINE" if chk("eth0") else "OFFLINE"
             u_st = "ONLINE" if chk("usb0") else "OFFLINE"
-            print(f"Active WAN: {cur} | eth0 (Fiber): {e_st} | usb0 (USB): {u_st}")
+            m_tag = f" ({mode})" if mode else ""
+            print(
+                f"Active WAN: {cur}{m_tag} | eth0 (Fiber): {e_st} | usb0 (USB): {u_st}"
+            )
             sys.exit(0)
         sw_fn = getattr(ctx, "switch_wan_uplink", None)
-        ok = sw_fn(args.wan_target) if sw_fn else False
+        mode = "auto" if args.wan_target == "auto" else "manual"
+        ok = sw_fn(args.wan_target, mode=mode) if sw_fn else False
         sys.exit(0 if ok else 1)
 
     if args.status:
