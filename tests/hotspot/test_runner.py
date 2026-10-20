@@ -75,6 +75,72 @@ class StatusChecksTests(unittest.TestCase):
             self.assertEqual(calls[0], dump_w0)
             self.assertEqual(calls[3], dump_w1)
 
+    def test_check_hotspot_router_ap_mode(self):
+        with (
+            patch.dict(
+                hotspot_manager.CONFIG,
+                {"ap_mode": "router", "router_ap_if": "eth1"},
+            ),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                return_value=(True, "eth1: <BROADCAST,MULTICAST,UP> state UP", ""),
+            ),
+        ):
+            self.assertTrue(hotspot_manager.check_hotspot())
+
+    def test_check_clients_router_ap_fallback(self):
+        with (
+            patch.dict(
+                hotspot_manager.CONFIG,
+                {"ap_mode": "router", "interface_wlan": "wlan0"},
+            ),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                return_value=(False, "", "No device"),
+            ),
+            patch.object(
+                hotspot_manager,
+                "get_connected_clients_detailed",
+                return_value=[{"ip": "10.43.0.47"}, {"ip": "10.43.0.48"}],
+            ),
+        ):
+            self.assertEqual(hotspot_manager.check_clients(), 2)
+
+    def test_formatter_router_ap_mode(self):
+        status = {
+            "services": {"hostapd": False, "dnsmasq": True},
+            "vpn": {
+                "connected": True,
+                "backend": "sing-box",
+                "interface": "sing0",
+                "ip": "10.99.0.1",
+                "external_ip": "1.2.3.4",
+            },
+            "hotspot": {
+                "broadcasting": True,
+                "clients": 5,
+                "ap_mode": "router",
+                "router_ip": "10.43.0.2",
+            },
+            "wan": {"interface": "eth0", "type": "Fiber"},
+            "dns_working": True,
+            "internet": True,
+            "ipv6_protection": "drop",
+        }
+        term_out = hotspot_manager.print_status(status)
+        self.assertIn("Standby (Router AP)", term_out)
+        self.assertIn("Mode: Router AP (TP-Link via eth1)", term_out)
+        self.assertIn("Dashboard: http://10.43.0.2", term_out)
+        self.assertIn("Clients: 5", term_out)
+
+        tg_out = hotspot_manager.print_status(status, telegram_format=True)
+        self.assertIn("Standby (Router AP)", tg_out)
+        self.assertIn("Router AP", tg_out)
+        self.assertIn("http://10.43.0.2", tg_out)
+        self.assertIn("Clients: <code>5</code>", tg_out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,10 +47,12 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
 
         lines.append(f"<b>{EMOJI_TOOLS} SERVICES:</b>")
         adguard_enabled = get_adg()
+        ap_mode = status.get("hotspot", {}).get("ap_mode", "internal")
         for service, ok in status["services"].items():
             if service == "adguard" and not adguard_enabled:
-                icon = "⏸️"
-                state = "Disabled"
+                icon, state = "⏸️", "Disabled"
+            elif service == "hostapd" and ap_mode == "router":
+                icon, state = "⏸️", "Standby (Router AP)"
             else:
                 icon = EMOJI_CHECK if ok else EMOJI_CROSS
                 state = "Running" if ok else "Stopped"
@@ -100,7 +102,14 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
         hotspot_active = status["hotspot"]["broadcasting"]
         icon = EMOJI_CHECK if hotspot_active else EMOJI_CROSS
         ssid = get_ssid()
-        lines.append(f"{icon} SSID: <code>{ssid}</code>")
+        if ap_mode == "router":
+            router_ip = status["hotspot"].get("router_ip", "10.43.0.2")
+            lines.append(f"{icon} Mode: <b>Router AP</b> (TP-Link via eth1)")
+            lines.append(
+                f'• Dashboard: <a href="http://{router_ip}">http://{router_ip}</a>'
+            )
+        else:
+            lines.append(f"{icon} SSID: <code>{ssid}</code>")
         lines.append(f"• Clients: <code>{status['hotspot']['clients']}</code>")
         lines.append("")
 
@@ -162,10 +171,12 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
 
     output.append(f"\n{Colors.BOLD}SERVICES:{Colors.RESET}")
     adguard_enabled = get_adg()
+    ap_mode = status.get("hotspot", {}).get("ap_mode", "internal")
     for service, ok in status["services"].items():
         if service == "adguard" and not adguard_enabled:
-            icon = "⏸️"
-            state = "Disabled"
+            icon, state = "⏸️", "Disabled"
+        elif service == "hostapd" and ap_mode == "router":
+            icon, state = "⏸️", "Standby (Router AP)"
         else:
             icon = "✅" if ok else "❌"
             state = "Running" if ok else "Stopped"
@@ -185,7 +196,12 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
 
     output.append(f"\n{Colors.BOLD}HOTSPOT:{Colors.RESET}")
     icon = "✅" if status["hotspot"]["broadcasting"] else "❌"
-    output.append(f"  {icon} SSID: {get_ssid()}")
+    if ap_mode == "router":
+        router_ip = status["hotspot"].get("router_ip", "10.43.0.2")
+        output.append(f"  {icon} Mode: Router AP (TP-Link via eth1)")
+        output.append(f"    Dashboard: http://{router_ip}")
+    else:
+        output.append(f"  {icon} SSID: {get_ssid()}")
     output.append(f"    Clients: {status['hotspot']['clients']}")
 
     output.append(f"\n{Colors.BOLD}NETWORK:{Colors.RESET}")

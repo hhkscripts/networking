@@ -22,6 +22,7 @@ class Config(TypedDict, total=False):
     adguard_container: str
     telegram_container: str
     adguard_enabled: bool
+    ap_mode: str
     router_ap_if: str
     router_ap_subnet: str
     router_ap_ip: str
@@ -49,9 +50,11 @@ class VpnStatus(TypedDict):
     external_ok: bool
 
 
-class HotspotInfo(TypedDict):
+class HotspotInfo(TypedDict, total=False):
     broadcasting: bool
     clients: int
+    ap_mode: str
+    router_ip: str
 
 
 class WanStatus(TypedDict, total=False):
@@ -86,6 +89,7 @@ CONFIG: Config = {
     "adguard_container": os.getenv("ADGUARD_CONTAINER", "adguardhome"),
     "telegram_container": os.getenv("TELEGRAM_CONTAINER", "mpxraspberrypibot"),
     "adguard_enabled": True,
+    "ap_mode": os.getenv("AP_MODE", "router"),
     "router_ap_if": os.getenv("ROUTER_AP_IF", "eth1"),
     "router_ap_subnet": os.getenv("ROUTER_AP_SUBNET", "10.43.0.0/24"),
     "router_ap_ip": os.getenv("ROUTER_AP_IP", "10.43.0.1"),
@@ -240,48 +244,12 @@ COUNTRY_NAME_MAP: dict[str, str] = {
 }
 
 REGION_MAP: dict[str, list[str]] = {
-    "asia": [
-        "ae",
-        "il",
-        "in",
-        "jp",
-        "kr",
-        "sg",
-        "hk",
-        "th",
-        "my",
-        "vn",
-        "id",
-        "ph",
-        "tw",
-    ],
-    "europe": [
-        "at",
-        "ba",
-        "ch",
-        "cz",
-        "de",
-        "dk",
-        "es",
-        "fr",
-        "gr",
-        "hr",
-        "it",
-        "lt",
-        "lux",
-        "lu",
-        "nl",
-        "no",
-        "pl",
-        "se",
-        "ua",
-        "uk",
-        "gb",
-        "fi",
-        "ie",
-    ],
-    "americas": ["br", "ca", "cl", "mx", "us"],
-    "oceania-africa": ["au", "nz", "ng", "za"],
+    "asia": "ae il in jp kr sg hk th my vn id ph tw".split(),
+    "europe": (
+        "at ba ch cz de dk es fr gr hr it lt lux lu nl no pl se ua uk gb fi ie"
+    ).split(),
+    "americas": "br ca cl mx us".split(),
+    "oceania-africa": "au nz ng za".split(),
 }
 
 

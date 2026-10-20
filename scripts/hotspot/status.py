@@ -30,10 +30,12 @@ def check_internet() -> bool:
     active_if, _ = get_iface()
     vpn_ok, _, _ = runner(["ip", "-4", "addr", "show", active_if])
     for target in targets:
-        if vpn_ok:
-            ok, _, _ = runner(["ping", "-c", "2", "-W", "3", "-I", active_if, target])
-        else:
-            ok, _, _ = runner(["ping", "-c", "2", "-W", "3", target])
+        cmd = (
+            ["ping", "-c", "2", "-W", "3"]
+            + (["-I", active_if] if vpn_ok else [])
+            + [target]
+        )
+        ok, _, _ = runner(cmd)
         if ok:
             return True
     return False
@@ -61,19 +63,15 @@ def check_ping(target: Optional[str] = None) -> PingStatus:
     ping_target = str(target or cfg.get("ping_target", "8.8.8.8") or "8.8.8.8")
     active_if, _ = get_iface()
     vpn_ok, _, _ = runner(["ip", "-4", "addr", "show", active_if])
-    out = ""
-    ok = False
+    ok, out = False, ""
     if vpn_ok:
         ok, out, _ = runner(
             ["ping", "-c", "3", "-W", "2", "-I", active_if, ping_target]
         )
-        if not ok:
-            ok, out, _ = runner(["ping", "-c", "3", "-W", "2", ping_target])
-    else:
+    if not ok:
         ok, out, _ = runner(["ping", "-c", "3", "-W", "2", ping_target])
 
-    packet_line = "No ping result"
-    rtt_line = ""
+    packet_line, rtt_line = "No ping result", ""
     for line in out.splitlines():
         if "packets transmitted" in line:
             packet_line = line.strip()
@@ -81,16 +79,14 @@ def check_ping(target: Optional[str] = None) -> PingStatus:
             rtt_line = line.strip()
 
     loss_match = re.search(r"(\d+(?:\.\d+)?)% packet loss", packet_line)
-    loss = loss_match.group(1) if loss_match else "?"
     avg_match = re.search(r"= ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+) ms", rtt_line)
-    avg = avg_match.group(2) if avg_match else "?"
     return {
         "ok": ok,
         "target": ping_target,
         "summary": packet_line,
         "rtt": rtt_line,
-        "loss": loss,
-        "avg_ms": avg,
+        "loss": loss_match.group(1) if loss_match else "?",
+        "avg_ms": avg_match.group(2) if avg_match else "?",
     }
 
 
@@ -98,35 +94,32 @@ def check_clients() -> int:
     ctx = Context.get()
     cfg = getattr(ctx, "CONFIG", CONFIG)
     runner = getattr(ctx, "run_args", run_args)
+    count = 0
     wlan = cfg.get("interface_wlan", "wlan0")
-    candidates = [wlan, "wlan1", "ap0"]
-    for dev in dict.fromkeys(c for c in candidates if c):
-        for cmd in [
-            ["sudo", "iw", "dev", dev, "station", "dump"],
-            ["/usr/sbin/iw", "dev", dev, "station", "dump"],
-            ["iw", "dev", dev, "station", "dump"],
-        ]:
-            ok, out, _ = runner(cmd)
+    for dev in dict.fromkeys([wlan, "wlan1", "ap0"]):
+        for bin_cmd in [["sudo", "iw"], ["/usr/sbin/iw"], ["iw"]]:
+            ok, out, _ = runner(bin_cmd + ["dev", dev, "station", "dump"])
             if ok:
-                return sum(
+                count = sum(
                     1 for line in out.splitlines() if line.startswith("Station ")
                 )
-    return 0
+                if count > 0:
+                    return count
+    get_clients = getattr(ctx, "get_connected_clients_detailed", None)
+    return len(get_clients()) if get_clients else count
 
 
 def check_hotspot() -> bool:
     ctx = Context.get()
     cfg = getattr(ctx, "CONFIG", CONFIG)
     runner = getattr(ctx, "run_args", run_args)
-    wlan = cfg.get("interface_wlan", "wlan0")
-    candidates = [wlan, "wlan1", "ap0"]
-    for dev in dict.fromkeys(c for c in candidates if c):
-        for cmd in [
-            ["sudo", "iw", "dev", dev, "info"],
-            ["/usr/sbin/iw", "dev", dev, "info"],
-            ["iw", "dev", dev, "info"],
-        ]:
-            ok, out, _ = runner(cmd)
+    if cfg.get("ap_mode") == "router":
+        router_if = cfg.get("router_ap_if", "eth1")
+        ok, out, _ = runner(["ip", "link", "show", router_if])
+        return ok and ("state UP" in out or "UP" in out)
+    for dev in dict.fromkeys([cfg.get("interface_wlan", "wlan0"), "wlan1", "ap0"]):
+        for bin_cmd in [["sudo", "iw"], ["/usr/sbin/iw"], ["iw"]]:
+            ok, out, _ = runner(bin_cmd + ["dev", dev, "info"])
             if ok and any(line.strip() == "type AP" for line in out.splitlines()):
                 return True
     ok, out, _ = runner(["systemctl", "is-active", "hostapd"])
@@ -148,18 +141,21 @@ def get_hotspot_ssid() -> str:
 
 def fix_hotspot() -> bool:
     ctx = Context.get()
+    cfg = getattr(ctx, "CONFIG", CONFIG)
     logger = getattr(ctx, "log", log)
     runner = getattr(ctx, "run_args", run_args)
     rst_vpn = getattr(ctx, "restart_vpn")
     apply_pol = getattr(ctx, "apply_vpn_policy")
 
-    # Only restart hostapd if it is inactive/dead to avoid dropping Wi-Fi for clients
-    ok, out, _ = runner(["systemctl", "is-active", "hostapd"])
-    if not ok or out.strip() != "active":
-        logger("Hostapd AP inactive; restarting hostapd...")
-        runner(["sudo", "systemctl", "restart", "hostapd"])
+    if cfg.get("ap_mode") == "router":
+        logger("Router AP mode active; hostapd restart bypassed.")
     else:
-        logger("Hostapd AP is active and healthy.")
+        ok, out, _ = runner(["systemctl", "is-active", "hostapd"])
+        if not ok or out.strip() != "active":
+            logger("Hostapd AP inactive; restarting hostapd...")
+            runner(["sudo", "systemctl", "restart", "hostapd"])
+        else:
+            logger("Hostapd AP is active and healthy.")
 
     logger("Restarting dnsmasq and ensuring DNS resilience...")
     runner(["sudo", "systemctl", "restart", "dnsmasq"])
@@ -168,8 +164,7 @@ def fix_hotspot() -> bool:
     if ensure_dns:
         ensure_dns()
     vpn_ok = rst_vpn()
-    policy_ok = apply_pol() if vpn_ok else False
-    return vpn_ok and policy_ok
+    return bool(vpn_ok and apply_pol())
 
 
 def get_status() -> HotspotStatus:
@@ -244,7 +239,12 @@ def get_status() -> HotspotStatus:
             "external_ip": external_ip,
             "external_ok": external_ok,
         },
-        "hotspot": {"broadcasting": chk_hotspot(), "clients": clients},
+        "hotspot": {
+            "broadcasting": chk_hotspot(),
+            "clients": clients,
+            "ap_mode": cfg.get("ap_mode", "internal"),
+            "router_ip": cfg.get("router_ap_router_ip", "10.43.0.2"),
+        },
         "wan": {
             "interface": wan_if,
             "type": wan_type,
@@ -258,10 +258,7 @@ def get_status() -> HotspotStatus:
 
 
 def ensure_vpn_resilience() -> tuple[bool, str]:
-    """Check VPN connection health and automatically rotate candidate IP or recover.
-
-    Returns (success, state_description).
-    """
+    """Check VPN connection health and automatically rotate candidate IP or recover."""
     ctx = Context.get()
     logger = getattr(ctx, "log", log)
     chk_vpn = getattr(ctx, "check_vpn")
@@ -274,25 +271,17 @@ def ensure_vpn_resilience() -> tuple[bool, str]:
 
     vpn_connected = chk_vpn()
     active_if, _backend = get_iface()
-
     if vpn_connected:
         ext_ok, _ = chk_ext_ip()
-        net_ok = chk_net()
-        if ext_ok or net_ok:
+        if ext_ok or chk_net():
             return True, "vpn_healthy"
 
-    logger(
-        f"VPN on {active_if} appears down or stalled. Attempting recovery...",
-        "WARN",
-    )
+    logger(f"VPN on {active_if} down or stalled. Attempting recovery...", "WARN")
     country = get_country()
     if active_if == "sing0" and country and country != "direct":
-        logger(f"Rotating candidate IP for country [{country.upper()}]...", "INFO")
+        logger(f"Rotating candidate IP for [{country.upper()}]...", "INFO")
         if rotate_ip(country):
             return True, "vpn_rotated_ip"
 
     logger(f"Restarting VPN service for {active_if}...", "INFO")
-    if restart_vpn(active_if):
-        return True, "vpn_recovered"
-
-    return False, "vpn_failed"
+    return (True, "vpn_recovered") if restart_vpn(active_if) else (False, "vpn_failed")

@@ -61,20 +61,24 @@ def load_goodwifi_conf() -> None:
                     k, v = line.split("=", 1)
                     k = k.strip()
                     v = v.strip().strip('"').strip("'")
-                    if k == "HOTSPOT_IF" and v:
-                        cfg["interface_wlan"] = v
-                    elif k == "HOTSPOT_IP" and v:
-                        cfg["hotspot_ip"] = v
-                    elif k == "HOTSPOT_SUBNET" and v:
-                        cfg["hotspot_subnet"] = v
-                    elif k == "PING_TARGET" and v:
-                        cfg["ping_target"] = v
-                    elif k == "VPN_UUID" and v:
-                        cfg["vpn_name"] = v
-                    elif k == "ADGUARD_CONTAINER" and v:
-                        cfg["adguard_container"] = v
-                    elif k == "TELEGRAM_CONTAINER" and v:
-                        cfg["telegram_container"] = v
+                    k_map = {
+                        "HOTSPOT_IF": "interface_wlan",
+                        "HOTSPOT_IP": "hotspot_ip",
+                        "HOTSPOT_SUBNET": "hotspot_subnet",
+                        "PING_TARGET": "ping_target",
+                        "VPN_UUID": "vpn_name",
+                        "ADGUARD_CONTAINER": "adguard_container",
+                        "TELEGRAM_CONTAINER": "telegram_container",
+                        "AP_MODE": "ap_mode",
+                        "ROUTER_AP_IF": "router_ap_if",
+                        "ROUTER_AP_SUBNET": "router_ap_subnet",
+                        "ROUTER_AP_IP": "router_ap_ip",
+                        "ROUTER_AP_ROUTER_IP": "router_ap_router_ip",
+                        "VPS_SSH_HOST": "vps_ssh_host",
+                        "VPS_SSH_USER": "vps_ssh_user",
+                    }
+                    if k in k_map and v:
+                        cfg[k_map[k]] = v
                     elif k == "ADGUARD_ENABLED" and v:
                         cfg["adguard_enabled"] = v.lower() not in [
                             "false",
@@ -84,15 +88,11 @@ def load_goodwifi_conf() -> None:
                             "disable",
                             "disabled",
                         ]
-                    elif k == "VPS_SSH_HOST" and v:
-                        cfg["vps_ssh_host"] = v
                     elif k == "VPS_SSH_PORT" and v:
                         try:
                             cfg["vps_ssh_port"] = int(v)
                         except ValueError:
                             pass
-                    elif k == "VPS_SSH_USER" and v:
-                        cfg["vps_ssh_user"] = v
         except Exception:
             pass
 

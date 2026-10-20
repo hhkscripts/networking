@@ -116,6 +116,70 @@ Station 00:11:22:33:44:55 (on wlan0)
             self.assertEqual(c["rx_bytes_str"], "4.0 KB")
             self.assertEqual(c["tx_bytes_str"], "8.0 KB")
 
+    def test_get_connected_clients_router_ap_mode(self):
+        lease_content = (
+            "1900000000 20:79:18:59:75:51 10.43.0.47 my-laptop 01:20:79:18:59:75:51\n"
+            "1900000000 d8:5d:4c:a6:31:42 10.43.0.2 router-ap 01:d8:5d:4c:a6:31:42\n"
+        )
+        with (
+            patch.dict(
+                hotspot_manager.CONFIG,
+                {
+                    "ap_mode": "router",
+                    "router_ap_if": "eth1",
+                    "router_ap_router_ip": "10.43.0.2",
+                },
+            ),
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=lease_content)),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                return_value=(False, "", ""),
+            ),
+        ):
+            clients = get_connected_clients_detailed()
+            self.assertEqual(len(clients), 1)
+            c = clients[0]
+            self.assertEqual(c["ip"], "10.43.0.47")
+            self.assertEqual(c["interface"], "eth1")
+            self.assertEqual(c["hostname"], "my-laptop")
+
+    def test_ip_neigh_filters_wan_and_router_ap(self):
+        neigh_output = (
+            "192.168.100.1 dev eth0 lladdr 7c:a9:6b:c2:d9:95 REACHABLE\n"
+            "10.43.0.2 dev eth1 lladdr d8:5d:4c:a6:31:42 REACHABLE\n"
+            "10.43.0.48 dev eth1 lladdr 10:20:30:40:50:60 REACHABLE\n"
+        )
+
+        def mock_runner(cmd, timeout=None):
+            if "station" in cmd:
+                return (False, "", "")
+            if "neigh" in cmd:
+                return (True, neigh_output, "")
+            return (False, "", "")
+
+        with (
+            patch.dict(
+                hotspot_manager.CONFIG,
+                {
+                    "lan_if": "eth0",
+                    "router_ap_router_ip": "10.43.0.2",
+                    "router_ap_ip": "10.43.0.1",
+                },
+            ),
+            patch("os.path.exists", return_value=False),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                side_effect=mock_runner,
+            ),
+        ):
+            clients = get_connected_clients_detailed()
+            self.assertEqual(len(clients), 1)
+            self.assertEqual(clients[0]["ip"], "10.43.0.48")
+            self.assertEqual(clients[0]["mac"], "10:20:30:40:50:60")
+
     def test_format_clients_output(self):
         mock_devices = [
             {
