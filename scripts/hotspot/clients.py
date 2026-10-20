@@ -162,7 +162,12 @@ def get_connected_clients_detailed() -> list[dict]:
     runner = getattr(ctx, "run_args", run_args)
     ok, out, _ = runner(["ip", "neigh", "show"])
     if ok and out:
-        wan_ifs = {cfg.get("lan_if", "eth0"), "eth0", "usb0", "usb1"}
+        ap_ifs = {
+            cfg.get("interface_wlan", "wlan0"),
+            cfg.get("router_ap_if", "eth1"),
+            "wlan0",
+            "eth1",
+        }
         for line in out.splitlines():
             parts = line.strip().split()
             if (
@@ -171,7 +176,7 @@ def get_connected_clients_detailed() -> list[dict]:
                 and parts[-1] in ("REACHABLE", "DELAY", "STALE")
             ):
                 dev_name = parts[parts.index("dev") + 1] if "dev" in parts else ""
-                if dev_name in wan_ifs:
+                if dev_name not in ap_ifs:
                     continue
                 ip = parts[0]
                 if ip in ignored_ips:
