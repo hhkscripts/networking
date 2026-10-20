@@ -126,6 +126,8 @@ def configure_dnsmasq_fallback(enable_fallback: bool) -> bool:
                 new_lines.insert(0, "port=0")
 
         new_content = "\n".join(new_lines) + "\n"
+        if new_content == content:
+            return True
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as tf:
             tf.write(new_content)
             temp_path = tf.name
