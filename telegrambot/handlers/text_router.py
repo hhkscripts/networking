@@ -15,7 +15,7 @@ from telegrambot.handlers.maintenance import (
     restart_command,
     restart_vpn_command,
 )
-from telegrambot.handlers.status import status_command
+from telegrambot.handlers.status import router_ap_command, status_command
 from telegrambot.handlers.vpn import switch_menu_command, switch_vpn_command
 
 
@@ -36,6 +36,14 @@ async def handle_text_message(
 
     if text in ["status", "stat"] or normalized == "status":
         await status_command(update, context)
+    elif text in [
+        "router",
+        "router ap",
+        "router_ap",
+        "ap",
+        "/router",
+    ] or normalized in ["router", "router_ap", "ap"]:
+        await router_ap_command(update, context)
     elif text in [
         "switch vpn",
         "switch_vpn",

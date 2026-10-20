@@ -9,7 +9,10 @@ from telegrambot.ui.country_keyboards import (
 )
 from telegrambot.ui.ipv6_keyboards import make_ipv6_keyboard
 from telegrambot.ui.main_keyboard import MAIN_KEYBOARD
-from telegrambot.ui.status_keyboards import make_status_keyboard
+from telegrambot.ui.status_keyboards import (
+    make_router_ap_keyboard,
+    make_status_keyboard,
+)
 from telegrambot.ui.vpn_keyboards import (
     make_switch_vpn_keyboard,
     make_vless_keyboard,
@@ -40,9 +43,26 @@ class TestTelegramBotUI(unittest.TestCase):
         self.assertIn("menu_country", callbacks)
         self.assertIn("menu_adguard", callbacks)
         self.assertIn("menu_ipv6", callbacks)
+        self.assertIn("refresh_clients", callbacks)
         self.assertIn("refresh_status", callbacks)
         button_texts = [btn.text for row in kb.inline_keyboard for btn in row]
         self.assertIn("VPN Profiles", button_texts)
+        self.assertIn("Clients", button_texts)
+
+        # In Router AP mode
+        kb_router = make_status_keyboard("Mode: Router AP (TP-Link via eth1)")
+        callbacks_router = [
+            btn.callback_data for row in kb_router.inline_keyboard for btn in row
+        ]
+        self.assertIn("menu_router_ap", callbacks_router)
+        self.assertIn("refresh_clients", callbacks_router)
+
+    def test_router_ap_keyboard(self):
+        kb = make_router_ap_keyboard()
+        callbacks = [btn.callback_data for row in kb.inline_keyboard for btn in row]
+        self.assertIn("ping_router", callbacks)
+        self.assertIn("refresh_clients", callbacks)
+        self.assertIn("refresh_status", callbacks)
 
     def test_switch_vpn_keyboard(self):
         # Test full available backends

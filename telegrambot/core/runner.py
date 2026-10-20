@@ -54,39 +54,36 @@ async def get_status_text() -> str:
     return enrich_status_text_with_custom_emojis(text, get_current_unlimited_country())
 
 
+def _read_goodwifi_conf() -> dict[str, str]:
+    """Parse /etc/goodwifi/goodwifi.conf into key-value map."""
+    for conf_path in [
+        "/host/etc/goodwifi/goodwifi.conf",
+        "/etc/goodwifi/goodwifi.conf",
+    ]:
+        if os.path.exists(conf_path):
+            try:
+                res = {}
+                with open(conf_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            k, v = line.split("=", 1)
+                            res[k.strip()] = v.strip().strip('"').strip("'")
+                return res
+            except Exception:
+                pass
+    return {}
+
+
 def get_current_unlimited_country() -> str:
     """Read the configured UNLIMITED_COUNTRY from goodwifi.conf."""
-    conf_path = "/host/etc/goodwifi/goodwifi.conf"
-    if not os.path.exists(conf_path):
-        conf_path = "/etc/goodwifi/goodwifi.conf"
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("UNLIMITED_COUNTRY="):
-                        return (
-                            line.split("=", 1)[1].strip().strip('"').strip("'").lower()
-                        )
-        except Exception:
-            pass
-    return "direct"
+    return _read_goodwifi_conf().get("UNLIMITED_COUNTRY", "direct").lower()
 
 
 def get_current_backend_name() -> str:
     """Resolve and format the currently active VPN backend name."""
-    conf_path = "/host/etc/goodwifi/goodwifi.conf"
-    if not os.path.exists(conf_path):
-        conf_path = "/etc/goodwifi/goodwifi.conf"
-    backend = "auto"
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("VPN_BACKEND="):
-                        backend = line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            pass
+    cfg = _read_goodwifi_conf()
+    backend = cfg.get("VPN_BACKEND", "auto")
 
     # Detect currently active network interface
     active_iface = None
@@ -123,48 +120,41 @@ def get_current_backend_name() -> str:
 
 def get_current_ipv6_mode() -> str:
     """Read the configured IPV6_LEAK_PROTECTION mode."""
-    conf_path = "/host/etc/goodwifi/goodwifi.conf"
-    if not os.path.exists(conf_path):
-        conf_path = "/etc/goodwifi/goodwifi.conf"
-
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("IPV6_LEAK_PROTECTION="):
-                        val = (
-                            line.split("=", 1)[1].strip().strip('"').strip("'").lower()
-                        )
-                        if val in ["drop", "reject", "off"]:
-                            return val
-        except Exception:
-            pass
-    return "drop"
+    mode = _read_goodwifi_conf().get("IPV6_LEAK_PROTECTION", "drop").lower()
+    return mode if mode in ["drop", "reject", "off"] else "drop"
 
 
 def get_current_adguard_state() -> bool:
     """Check whether AdGuard Home DNS protection is enabled."""
-    conf_path = "/host/etc/goodwifi/goodwifi.conf"
-    if not os.path.exists(conf_path):
-        conf_path = "/etc/goodwifi/goodwifi.conf"
+    val = _read_goodwifi_conf().get("ADGUARD_ENABLED", "true").lower()
+    return val not in ["false", "0", "off", "no", "disable", "disabled"]
 
-    if os.path.exists(conf_path):
-        try:
-            with open(conf_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("ADGUARD_ENABLED="):
-                        val = (
-                            line.split("=", 1)[1].strip().strip('"').strip("'").lower()
-                        )
-                        if val in ["false", "0", "off", "no", "disable", "disabled"]:
-                            return False
-                        elif val in ["true", "1", "on", "yes", "enable", "enabled"]:
-                            return True
-        except Exception:
-            pass
-    return True
+
+def ping_router_ap(target: str = "10.43.0.2") -> str:
+    """Ping Router AP from host namespaces and return latency summary."""
+    try:
+        cmd = [
+            "nsenter",
+            "--target",
+            "1",
+            "--net",
+            "--",
+            "ping",
+            "-c",
+            "2",
+            "-W",
+            "2",
+            target,
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        for line in res.stdout.splitlines():
+            if "rtt " in line or "round-trip" in line:
+                return line.strip()
+            elif "packet loss" in line:
+                return line.strip()
+        return "Ping succeeded" if res.returncode == 0 else "Ping timeout"
+    except Exception as e:
+        return f"Ping error: {e}"
 
 
 def get_available_vpn_backends() -> dict[str, bool]:

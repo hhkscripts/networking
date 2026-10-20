@@ -56,7 +56,12 @@ from telegrambot.handlers.maintenance import (
     restart_command,
     restart_vpn_command,
 )
-from telegrambot.handlers.status import refresh_callback, status_command
+from telegrambot.handlers.status import (
+    refresh_callback,
+    router_ap_callback,
+    router_ap_command,
+    status_command,
+)
 from telegrambot.handlers.text_router import handle_text_message
 from telegrambot.handlers.vpn import (
     switch_menu_command,
@@ -99,6 +104,7 @@ def create_application() -> Application:
     app.add_handler(CommandHandler("regions", country_menu_command))
     app.add_handler(CommandHandler("fix", fix_command))
     app.add_handler(CommandHandler("clients", clients_command))
+    app.add_handler(CommandHandler("router", router_ap_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("ipv6", ipv6_command))
     app.add_handler(CommandHandler("adguard", adguard_command))
@@ -118,6 +124,11 @@ def create_application() -> Application:
     app.add_handler(CallbackQueryHandler(refresh_callback, pattern="^refresh_status$"))
     app.add_handler(
         CallbackQueryHandler(refresh_clients_callback, pattern="^refresh_clients$")
+    )
+    app.add_handler(
+        CallbackQueryHandler(
+            router_ap_callback, pattern=r"^(menu_router_ap|ping_router)$"
+        )
     )
 
     # Plain text message handler

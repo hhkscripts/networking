@@ -79,6 +79,17 @@ class TestTelegramBotTextRouter(unittest.TestCase):
         mock_country.assert_called_once_with(update, self.context)
         self.assertEqual(self.context.args, ["jp"])
 
+    @patch("telegrambot.handlers.text_router.check_authorization", return_value=True)
+    @patch("telegrambot.handlers.text_router.router_ap_command", new_callable=AsyncMock)
+    def test_routes_router_text_to_router_ap_command(self, mock_router, mock_auth):
+        for text in ["router", "Router", "router ap", "router_ap", "/router", "ap"]:
+            mock_router.reset_mock()
+            update = self._make_update(text)
+            import asyncio
+
+            asyncio.run(handle_text_message(update, self.context))
+            mock_router.assert_called_once_with(update, self.context)
+
 
 if __name__ == "__main__":
     unittest.main()
