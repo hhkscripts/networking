@@ -17,10 +17,12 @@ def _get_routing_table_names(table: str = "100") -> Set[str]:
     for p in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
         if os.path.exists(p):
             try:
-                for line in open(p, encoding="utf-8"):
-                    parts = line.strip().split()
-                    if len(parts) >= 2 and parts[0] == str(table):
-                        names.add(parts[1])
+                with open(p, encoding="utf-8") as f:
+                    names.update(
+                        parts[1]
+                        for parts in (line.split() for line in f)
+                        if len(parts) >= 2 and parts[0] == str(table)
+                    )
             except Exception:
                 pass
     return names
@@ -37,6 +39,7 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
     target_iface = str(interface or "tun0")
     table = str(cfg.get("routing_table", 100))
     subnet = cfg.get("hotspot_subnet", "10.42.0.0/24")
+    r_subnet = cfg.get("router_ap_subnet", "10.43.0.0/24")
     valid_tables = _get_routing_table_names(table)
 
     for attempt in range(1, 4):
@@ -54,7 +57,12 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
             f"default dev {target_iface}" in r_out or "default dev" in r_out
         )
         has_rule = any(
-            (f"from {subnet}" in line or "from 10.42.0.0/24" in line)
+            (
+                f"from {subnet}" in line
+                or f"from {r_subnet}" in line
+                or "from 10.42.0.0/24" in line
+                or "from 10.43.0.0/24" in line
+            )
             and any(f"lookup {t}" in line for t in valid_tables)
             for line in (rule_out or "").splitlines()
         )
@@ -95,11 +103,9 @@ def get_wan_mode() -> str:
     """Return WAN mode: 'auto' or 'manual'."""
     try:
         val = open(WAN_MODE_FILE, encoding="utf-8").read().strip().lower()
-        if val in ["auto", "manual"]:
-            return val
+        return val if val in ["auto", "manual"] else "auto"
     except OSError:
-        pass
-    return "auto"
+        return "auto"
 
 
 def check_wan_reachability(
@@ -153,27 +159,24 @@ def _clean_routes_for_dev(runner, dev: str, is_primary: bool) -> None:
     keep = "metric 50" if is_primary else "metric 600"
     for line in out.splitlines():
         if keep not in line:
-            parts = line.split()
-            cmd = ["sudo", "ip", "route", "del", "default"]
-            if "via" in parts:
-                cmd += ["via", parts[parts.index("via") + 1]]
-            cmd += ["dev", dev]
-            if "metric" in parts:
-                cmd += ["metric", parts[parts.index("metric") + 1]]
-            runner(cmd)
+            p = line.split()
+            via = ["via", p[p.index("via") + 1]] if "via" in p else []
+            metric = ["metric", p[p.index("metric") + 1]] if "metric" in p else []
+            runner(["sudo", "ip", "route", "del", "default", *via, "dev", dev, *metric])
 
 
 def _route_cmd(dev: str, gw: Optional[str], metric: str) -> list[str]:
-    cmd = ["sudo", "ip", "route", "replace", "default"]
-    if gw:
-        cmd += ["via", gw]
-    return cmd + ["dev", dev, "metric", metric]
+    gw_p = ["via", gw] if gw else []
+    base = ["sudo", "ip", "route", "replace", "default"]
+    return [*base, *gw_p, "dev", dev, "metric", metric]
 
 
 def get_current_default_wan() -> str:
     """Return the device with the primary default route in main table."""
     ctx = Context.get()
     runner = getattr(ctx, "run_args", run_args)
+    cfg = getattr(ctx, "CONFIG", CONFIG)
+    router_if = cfg.get("router_ap_if", "eth1")
     ok, out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
     if not (ok and out):
         return "eth0"
@@ -182,7 +185,7 @@ def get_current_default_wan() -> str:
         p = line.split()
         if "dev" in p:
             dev = p[p.index("dev") + 1]
-            if dev not in ["wlan0", "sing0", "awg0", "wg0", "tun0"]:
+            if dev not in ["wlan0", router_if, "sing0", "awg0", "wg0", "tun0"]:
                 m = int(p[p.index("metric") + 1]) if "metric" in p else 0
                 if m < lowest_metric:
                     lowest_metric, best_dev = m, dev
@@ -247,16 +250,11 @@ def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
 
     logger(f"Successfully switched WAN to [{target}]", "SUCCESS")
     notify_fn = getattr(ctx, "send_telegram_notification", send_telegram_notification)
+    alert = "<b>GoodWifi WAN Alert</b>\n"
     if target == "usb0":
-        notify_fn(
-            "⚠️ <b>GoodWifi WAN Alert</b>\n"
-            "Fiber dropped. Uplink: <b>Mobile USB (usb0)</b>."
-        )
+        notify_fn(f"⚠️ {alert}Fiber dropped. Uplink: <b>Mobile USB (usb0)</b>.")
     elif target == "eth0" and current_wan and current_wan != "eth0":
-        notify_fn(
-            "✅ <b>GoodWifi WAN Alert</b>\n"
-            "Fiber restored! Uplink: <b>Fiber (eth0)</b>."
-        )
+        notify_fn(f"✅ {alert}Fiber restored! Uplink: <b>Fiber (eth0)</b>.")
     return True
 
 

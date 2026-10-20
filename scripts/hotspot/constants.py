@@ -22,6 +22,10 @@ class Config(TypedDict, total=False):
     adguard_container: str
     telegram_container: str
     adguard_enabled: bool
+    router_ap_if: str
+    router_ap_subnet: str
+    router_ap_ip: str
+    router_ap_router_ip: str
     vps_ssh_host: Optional[str]
     vps_ssh_port: Optional[int]
     vps_ssh_user: Optional[str]
@@ -82,6 +86,10 @@ CONFIG: Config = {
     "adguard_container": os.getenv("ADGUARD_CONTAINER", "adguardhome"),
     "telegram_container": os.getenv("TELEGRAM_CONTAINER", "mpxraspberrypibot"),
     "adguard_enabled": True,
+    "router_ap_if": os.getenv("ROUTER_AP_IF", "eth1"),
+    "router_ap_subnet": os.getenv("ROUTER_AP_SUBNET", "10.43.0.0/24"),
+    "router_ap_ip": os.getenv("ROUTER_AP_IP", "10.43.0.1"),
+    "router_ap_router_ip": os.getenv("ROUTER_AP_ROUTER_IP", "10.43.0.2"),
 }
 
 GITHUB_ROUTE_SCRIPT = "/usr/local/bin/github-vpn-routes.sh"

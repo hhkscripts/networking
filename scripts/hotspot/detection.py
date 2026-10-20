@@ -228,16 +228,19 @@ def get_active_wan_interface() -> str:
     if configured and configured != "auto":
         return configured
 
+    router_if = cfg.get("router_ap_if", "eth1")
     ok, out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
     if ok and out:
         for line in out.splitlines():
             parts = line.split()
             if "dev" in parts:
                 dev = parts[parts.index("dev") + 1]
-                if dev not in ["wlan0", "sing0", "awg0", "wg0", "tun0"]:
+                if dev not in ["wlan0", router_if, "sing0", "awg0", "wg0", "tun0"]:
                     return dev
 
-    for cand in ["eth0", "usb0", "eth1", "usb1"]:
+    for cand in ["eth0", "usb0", "usb1"]:
+        if cand == router_if:
+            continue
         ok_l, out_l, _ = runner(["ip", "link", "show", cand])
         ok_a, out_a, _ = runner(["ip", "-4", "addr", "show", cand])
         if ok_l and "state UP" in out_l and ok_a and "inet " in out_a:
