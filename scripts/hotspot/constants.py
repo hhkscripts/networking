@@ -94,6 +94,7 @@ CONFIG: Config = {
     "router_ap_subnet": os.getenv("ROUTER_AP_SUBNET", "10.43.0.0/24"),
     "router_ap_ip": os.getenv("ROUTER_AP_IP", "10.43.0.1"),
     "router_ap_router_ip": os.getenv("ROUTER_AP_ROUTER_IP", "10.43.0.2"),
+    "router_ap_alias_ip": os.getenv("ROUTER_AP_ALIAS_IP", "192.168.100.2"),
 }
 
 GITHUB_ROUTE_SCRIPT = "/usr/local/bin/github-vpn-routes.sh"

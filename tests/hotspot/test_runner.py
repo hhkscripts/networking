@@ -123,6 +123,7 @@ class StatusChecksTests(unittest.TestCase):
                 "clients": 5,
                 "ap_mode": "router",
                 "router_ip": "10.43.0.2",
+                "router_alias_ip": "192.168.100.2",
             },
             "wan": {"interface": "eth0", "type": "Fiber"},
             "dns_working": True,
@@ -133,12 +134,14 @@ class StatusChecksTests(unittest.TestCase):
         self.assertIn("Standby (Router AP)", term_out)
         self.assertIn("Mode: Router AP (TP-Link via eth1)", term_out)
         self.assertIn("Dashboard: http://10.43.0.2", term_out)
+        self.assertIn("Via Router 1: http://192.168.100.2", term_out)
         self.assertIn("Clients: 5", term_out)
 
         tg_out = hotspot_manager.print_status(status, telegram_format=True)
         self.assertIn("Standby (Router AP)", tg_out)
         self.assertIn("Router AP", tg_out)
         self.assertIn("http://10.43.0.2", tg_out)
+        self.assertIn("http://192.168.100.2", tg_out)
         self.assertIn("Clients: <code>5</code>", tg_out)
 
 

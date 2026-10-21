@@ -16,6 +16,7 @@ ROUTER_AP_IF="${ROUTER_AP_IF:-eth1}"
 ROUTER_AP_SUBNET="${ROUTER_AP_SUBNET:-10.43.0.0/24}"
 ROUTER_AP_IP="${ROUTER_AP_IP:-10.43.0.1}"
 ROUTER_AP_ROUTER_IP="${ROUTER_AP_ROUTER_IP:-10.43.0.2}"
+ROUTER_AP_ALIAS_IP="${ROUTER_AP_ALIAS_IP:-192.168.100.2}"
 
 detect_active_wan_if() {
     # 0. Check dynamic WAN state file if active
@@ -231,6 +232,7 @@ remove_ap_rules() {
     [ -z "$_if" ] || [ -z "$_subnet" ] && return 0
 
     remove_rule nat POSTROUTING -s "$_subnet" -o "$VPN_IF" -j MASQUERADE
+    remove_rule nat POSTROUTING -o "$_if" -j MASQUERADE
     for wan in "$LAN_IF" eth0 usb0 eth1 usb1; do
         [ "$wan" = "$_if" ] && continue
         remove_rule nat POSTROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$wan" -j MASQUERADE
@@ -243,10 +245,17 @@ remove_ap_rules() {
             remove_rule filter FORWARD -i "$_if" -o "$wan" -s "$_subnet" -d "$subnet" -j ACCEPT
             remove_rule filter FORWARD -i "$wan" -o "$_if" -d "$_subnet" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
             remove_rule "$IPTABLES_CHAIN" -i "$_if" -o "$wan" -s "$_subnet" -d "$subnet" -j ACCEPT
+            remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$_if" -s "$subnet" -d "$_subnet" -j ACCEPT
             remove_rule "$IPTABLES_CHAIN" -i "$wan" -o "$_if" -d "$_subnet" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
             remove_rule nat POSTROUTING -s "$_subnet" -d "$subnet" -o "$wan" -j MASQUERADE
+            remove_rule nat POSTROUTING -s "$subnet" -d "$_subnet" -o "$_if" -j MASQUERADE
         done
     done
+    if [ "$_if" = "$ROUTER_AP_IF" ] && [ -n "$ROUTER_AP_ALIAS_IP" ]; then
+        remove_rule nat PREROUTING -d "$ROUTER_AP_ALIAS_IP" -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP"
+        remove_rule "$IPTABLES_CHAIN" -d "$ROUTER_AP_ROUTER_IP" -j ACCEPT
+        ip -4 addr del "$ROUTER_AP_ALIAS_IP/24" dev eth0 label eth0:router 2>/dev/null || true
+    fi
     remove_rule mangle PREROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
     remove_rule mangle PREROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark 0
     remove_rule mangle PREROUTING -s "$_subnet" -m set --match-set "$LEGACY_LOCAL_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
@@ -308,11 +317,16 @@ apply_ap_rules() {
         if [ "$target_dev" = "$VPN_IF" ] || [ "$subnet" = "10.8.0.0/24" ]; then
             continue
         fi
-        iptables -t nat -C POSTROUTING -s "$_subnet" -d "$subnet" -o "$LAN_IF" -j MASQUERADE 2>/dev/null || \
-            iptables -t nat -A POSTROUTING -s "$_subnet" -d "$subnet" -o "$LAN_IF" -j MASQUERADE
+        target_dev="${target_dev:-$LAN_IF}"
+        iptables -t nat -C POSTROUTING -s "$_subnet" -d "$subnet" -o "$target_dev" -j MASQUERADE 2>/dev/null || \
+            iptables -t nat -A POSTROUTING -s "$_subnet" -d "$subnet" -o "$target_dev" -j MASQUERADE
+        iptables -t nat -C POSTROUTING -s "$subnet" -d "$_subnet" -o "$_if" -j MASQUERADE 2>/dev/null || \
+            iptables -t nat -A POSTROUTING -s "$subnet" -d "$_subnet" -o "$_if" -j MASQUERADE
     done
     iptables -t nat -C POSTROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE 2>/dev/null || \
         iptables -t nat -A POSTROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -o "$LAN_IF" -j MASQUERADE
+    iptables -t nat -C POSTROUTING -o "$_if" -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -o "$_if" -j MASQUERADE
 
     iptables -t mangle -C PREROUTING -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK" 2>/dev/null || \
         iptables -t mangle -I PREROUTING 1 -s "$_subnet" -m set --match-set "$LOCAL_ROUTES_IPSET" dst -j MARK --set-mark "$BYPASS_FWMARK"
@@ -327,11 +341,22 @@ apply_ap_rules() {
         if [ "$target_dev" = "$VPN_IF" ] || [ "$subnet" = "10.8.0.0/24" ]; then
             continue
         fi
-        iptables -A "$IPTABLES_CHAIN" -i "$_if" -o "$LAN_IF" -s "$_subnet" -d "$subnet" -j ACCEPT
-        iptables -A "$IPTABLES_CHAIN" -i "$LAN_IF" -o "$_if" -d "$_subnet" -s "$subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+        target_dev="${target_dev:-$LAN_IF}"
+        iptables -A "$IPTABLES_CHAIN" -i "$_if" -o "$target_dev" -s "$_subnet" -d "$subnet" -j ACCEPT
+        iptables -A "$IPTABLES_CHAIN" -i "$target_dev" -o "$_if" -s "$subnet" -d "$_subnet" -j ACCEPT
     done
     iptables -A "$IPTABLES_CHAIN" -i "$_if" -o "$VPN_IF" -s "$_subnet" -j ACCEPT
     iptables -A "$IPTABLES_CHAIN" -i "$VPN_IF" -o "$_if" -d "$_subnet" -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+    if [ "$_if" = "$ROUTER_AP_IF" ] && [ -n "$ROUTER_AP_ALIAS_IP" ] && [ -n "$ROUTER_AP_ROUTER_IP" ]; then
+        if ip -4 addr show eth0 2>/dev/null | grep -q "192.168.100\."; then
+            ip -4 addr add "$ROUTER_AP_ALIAS_IP/24" dev eth0 label eth0:router 2>/dev/null || true
+            iptables -t nat -C PREROUTING -d "$ROUTER_AP_ALIAS_IP" -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP" 2>/dev/null || \
+                iptables -t nat -A PREROUTING -d "$ROUTER_AP_ALIAS_IP" -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP"
+            iptables -C "$IPTABLES_CHAIN" -d "$ROUTER_AP_ROUTER_IP" -j ACCEPT 2>/dev/null || \
+                iptables -A "$IPTABLES_CHAIN" -d "$ROUTER_AP_ROUTER_IP" -j ACCEPT
+        fi
+    fi
 
     # Fail-closed Kill Switch: reject client traffic attempting to route without active VPN or matching bypass
     iptables -A "$IPTABLES_CHAIN" -i "$_if" -s "$_subnet" -j REJECT --reject-with icmp-net-prohibited

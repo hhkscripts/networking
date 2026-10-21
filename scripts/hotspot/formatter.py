@@ -104,10 +104,12 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
         ssid = get_ssid()
         if ap_mode == "router":
             router_ip = status["hotspot"].get("router_ip", "10.43.0.2")
+            alias_ip = status["hotspot"].get("router_alias_ip", "192.168.100.2")
             lines.append(f"{icon} Mode: <b>Router AP</b> (TP-Link via eth1)")
-            lines.append(
-                f'• Dashboard: <a href="http://{router_ip}">http://{router_ip}</a>'
-            )
+            dash = f'• Dashboard: <a href="http://{router_ip}">http://{router_ip}</a>'
+            if alias_ip:
+                dash += f' | Via R1: <a href="http://{alias_ip}">http://{alias_ip}</a>'
+            lines.append(dash)
         else:
             lines.append(f"{icon} SSID: <code>{ssid}</code>")
         lines.append(f"• Clients: <code>{status['hotspot']['clients']}</code>")
@@ -198,8 +200,10 @@ def print_status(status: HotspotStatus, telegram_format: bool = False) -> str:
     icon = "✅" if status["hotspot"]["broadcasting"] else "❌"
     if ap_mode == "router":
         router_ip = status["hotspot"].get("router_ip", "10.43.0.2")
+        alias_ip = status["hotspot"].get("router_alias_ip", "192.168.100.2")
         output.append(f"  {icon} Mode: Router AP (TP-Link via eth1)")
-        output.append(f"    Dashboard: http://{router_ip}")
+        dash = f"    Dashboard: http://{router_ip}"
+        output.append(f"{dash} (Via Router 1: http://{alias_ip})" if alias_ip else dash)
     else:
         output.append(f"  {icon} SSID: {get_ssid()}")
     output.append(f"    Clients: {status['hotspot']['clients']}")

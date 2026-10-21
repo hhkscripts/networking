@@ -74,6 +74,7 @@ def load_goodwifi_conf() -> None:
                         "ROUTER_AP_SUBNET": "router_ap_subnet",
                         "ROUTER_AP_IP": "router_ap_ip",
                         "ROUTER_AP_ROUTER_IP": "router_ap_router_ip",
+                        "ROUTER_AP_ALIAS_IP": "router_ap_alias_ip",
                         "VPS_SSH_HOST": "vps_ssh_host",
                         "VPS_SSH_USER": "vps_ssh_user",
                     }

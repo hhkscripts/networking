@@ -21,6 +21,7 @@ ROUTER_AP_INFO_HTML = (
     "• <b>Gateway & DNS:</b> <code>10.43.0.1</code> (Raspberry Pi 5)\n"
     "• <b>Router Admin IP:</b> <code>10.43.0.2</code>\n"
     '• <b>Web Dashboard:</b> <a href="http://10.43.0.2">http://10.43.0.2</a>\n'
+    '• <b>From Router 1:</b> <a href="http://192.168.100.2">http://192.168.100.2</a>\n'
     "• <b>Security:</b> Fail-Closed VPN + AdGuard DNS"
 )
 

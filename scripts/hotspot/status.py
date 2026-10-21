@@ -244,6 +244,7 @@ def get_status() -> HotspotStatus:
             "clients": clients,
             "ap_mode": cfg.get("ap_mode", "internal"),
             "router_ip": cfg.get("router_ap_router_ip", "10.43.0.2"),
+            "router_alias_ip": cfg.get("router_ap_alias_ip", "192.168.100.2"),
         },
         "wan": {
             "interface": wan_if,
