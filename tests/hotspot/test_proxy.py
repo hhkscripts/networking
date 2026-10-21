@@ -4,7 +4,7 @@ import io
 import unittest
 from unittest.mock import MagicMock, patch
 
-from hotspot.proxy import RouterProxyHandler
+from hotspot.proxy import RouterProxyHandler, run_proxy
 
 
 class RouterProxyHandlerTests(unittest.TestCase):
@@ -82,6 +82,16 @@ class RouterProxyHandlerTests(unittest.TestCase):
         mock_send_hdr.assert_any_call(
             "Location", "http://192.168.100.2/userRpm/Index.htm"
         )
+
+    @patch("hotspot.proxy.HTTPServer")
+    def test_run_proxy(self, mock_server_cls):
+        mock_server = MagicMock()
+        mock_server_cls.return_value = mock_server
+
+        run_proxy(port=8092, host="0.0.0.0")
+
+        mock_server_cls.assert_called_once_with(("0.0.0.0", 8092), RouterProxyHandler)
+        mock_server.serve_forever.assert_called_once()
 
 
 if __name__ == "__main__":

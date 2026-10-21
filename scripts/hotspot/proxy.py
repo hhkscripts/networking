@@ -73,7 +73,7 @@ class RouterProxyHandler(BaseHTTPRequestHandler):
             self.send_error(502, f"Router Proxy Error: {e}")
 
 
-def run_proxy(port: int = 8092, host: str = "127.0.0.1") -> None:
+def run_proxy(port: int = 8092, host: str = "0.0.0.0") -> None:
     ctx = Context.get()
     cfg = getattr(ctx, "CONFIG", CONFIG)
     RouterProxyHandler.target_host = cfg.get("router_ap_router_ip", "10.43.0.2")

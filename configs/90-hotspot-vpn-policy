@@ -253,6 +253,7 @@ remove_ap_rules() {
     done
     if [ "$_if" = "$ROUTER_AP_IF" ] && [ -n "$ROUTER_AP_ALIAS_IP" ]; then
         remove_rule nat PREROUTING -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092
+        remove_rule nat OUTPUT -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092
         remove_rule nat PREROUTING -d "$ROUTER_AP_ALIAS_IP" ! -p tcp -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP"
         remove_rule nat PREROUTING -d "$ROUTER_AP_ALIAS_IP" -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP"
         remove_rule "$IPTABLES_CHAIN" -d "$ROUTER_AP_ROUTER_IP" -j ACCEPT
@@ -355,6 +356,8 @@ apply_ap_rules() {
             ip -4 addr add "$ROUTER_AP_ALIAS_IP/24" dev eth0 label eth0:router 2>/dev/null || true
             iptables -t nat -C PREROUTING -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092 2>/dev/null || \
                 iptables -t nat -A PREROUTING -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092
+            iptables -t nat -C OUTPUT -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092 2>/dev/null || \
+                iptables -t nat -A OUTPUT -d "$ROUTER_AP_ALIAS_IP" -p tcp --dport 80 -j REDIRECT --to-ports 8092
             iptables -t nat -C PREROUTING -d "$ROUTER_AP_ALIAS_IP" ! -p tcp -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP" 2>/dev/null || \
                 iptables -t nat -A PREROUTING -d "$ROUTER_AP_ALIAS_IP" ! -p tcp -j DNAT --to-destination "$ROUTER_AP_ROUTER_IP"
             iptables -C "$IPTABLES_CHAIN" -d "$ROUTER_AP_ROUTER_IP" -j ACCEPT 2>/dev/null || \
