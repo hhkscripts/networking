@@ -4,10 +4,13 @@
 import sys
 import urllib.error
 import urllib.request
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .constants import CONFIG
 from .context import Context
+
+# Use ThreadingHTTPServer so hanging requests never block other clients
+HTTPServer = ThreadingHTTPServer
 
 
 class RouterProxyHandler(BaseHTTPRequestHandler):
@@ -30,7 +33,9 @@ class RouterProxyHandler(BaseHTTPRequestHandler):
         url = f"http://{self.target_host}{self.path}"
         length = self.headers.get("Content-Length")
         body = self.rfile.read(int(length)) if length and length.isdigit() else None
-        req = urllib.request.Request(url, data=body, method=method)
+        # TP-Link embedded server hangs on HEAD; convert upstream to GET
+        upstream_method = "GET" if method == "HEAD" else method
+        req = urllib.request.Request(url, data=body, method=upstream_method)
 
         for k, v in self.headers.items():
             if k.lower() in ["host", "referer"]:
@@ -47,7 +52,7 @@ class RouterProxyHandler(BaseHTTPRequestHandler):
             req.add_header("Referer", f"http://{self.target_host}/userRpm/Index.htm")
 
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=5) as resp:
                 self.send_response(resp.status)
                 for hk, hv in resp.headers.items():
                     hkl = hk.lower()
@@ -59,7 +64,8 @@ class RouterProxyHandler(BaseHTTPRequestHandler):
                 content = resp.read()
                 self.send_header("Content-Length", str(len(content)))
                 self.end_headers()
-                self.wfile.write(content)
+                if method != "HEAD":
+                    self.wfile.write(content)
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
             for hk, hv in e.headers.items():
@@ -68,7 +74,8 @@ class RouterProxyHandler(BaseHTTPRequestHandler):
             err = e.read()
             self.send_header("Content-Length", str(len(err)))
             self.end_headers()
-            self.wfile.write(err)
+            if method != "HEAD":
+                self.wfile.write(err)
         except Exception as e:
             self.send_error(502, f"Router Proxy Error: {e}")
 
@@ -79,6 +86,7 @@ def run_proxy(port: int = 8092, host: str = "0.0.0.0") -> None:
     RouterProxyHandler.target_host = cfg.get("router_ap_router_ip", "10.43.0.2")
     RouterProxyHandler.alias_ip = cfg.get("router_ap_alias_ip", "192.168.100.2")
     server = HTTPServer((host, port), RouterProxyHandler)
+    server.daemon_threads = True
     server.serve_forever()
 
 

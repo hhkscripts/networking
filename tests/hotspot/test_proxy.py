@@ -83,6 +83,41 @@ class RouterProxyHandlerTests(unittest.TestCase):
             "Location", "http://192.168.100.2/userRpm/Index.htm"
         )
 
+    def test_proxy_head_converts_to_get_and_omits_body(self):
+        handler = RouterProxyHandler.__new__(RouterProxyHandler)
+        handler.target_host = "10.43.0.2"
+        handler.alias_ip = "192.168.100.2"
+        handler.path = "/userRpm/Index.htm"
+        handler.command = "HEAD"
+        handler.headers = {}
+        handler.rfile = io.BytesIO()
+        handler.wfile = io.BytesIO()
+
+        mock_resp = MagicMock()
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.status = 200
+        mock_resp.headers = {"Content-Type": "text/html"}
+        mock_resp.read.return_value = b"<html>content</html>"
+
+        sent_requests = []
+
+        def fake_urlopen(req, timeout=5):
+            sent_requests.append(req)
+            return mock_resp
+
+        with (
+            patch("urllib.request.urlopen", side_effect=fake_urlopen),
+            patch.object(handler, "send_response") as mock_send_resp,
+            patch.object(handler, "send_header"),
+            patch.object(handler, "end_headers"),
+        ):
+            handler.do_HEAD()
+
+        self.assertEqual(len(sent_requests), 1)
+        self.assertEqual(sent_requests[0].get_method(), "GET")
+        mock_send_resp.assert_called_once_with(200)
+        self.assertEqual(handler.wfile.getvalue(), b"")
+
     @patch("hotspot.proxy.HTTPServer")
     def test_run_proxy(self, mock_server_cls):
         mock_server = MagicMock()

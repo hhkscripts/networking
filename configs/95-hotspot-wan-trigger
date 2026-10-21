@@ -5,6 +5,10 @@
 DEV="$1"
 ACTION="$2"
 
+if [ "$DEV" = "eth1" ] || [ "$DEV" = "wlan0" ]; then
+    exit 0
+fi
+
 case "$DEV" in
     usb*|eth*)
         case "$ACTION" in

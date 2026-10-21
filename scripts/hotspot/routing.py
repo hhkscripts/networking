@@ -17,12 +17,10 @@ def _get_routing_table_names(table: str = "100") -> Set[str]:
     for p in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
         if os.path.exists(p):
             try:
-                with open(p, encoding="utf-8") as f:
-                    names.update(
-                        parts[1]
-                        for parts in (line.split() for line in f)
-                        if len(parts) >= 2 and parts[0] == str(table)
-                    )
+                for line in open(p, encoding="utf-8"):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[0] == str(table):
+                        names.add(parts[1])
             except Exception:
                 pass
     return names
@@ -30,8 +28,7 @@ def _get_routing_table_names(table: str = "100") -> Set[str]:
 
 def apply_vpn_policy(interface: Optional[str] = None) -> bool:
     ctx = Context.get()
-    runner = getattr(ctx, "run_args", run_args)
-    logger = getattr(ctx, "log", log)
+    runner, logger = getattr(ctx, "run_args", run_args), getattr(ctx, "log", log)
     cfg = getattr(ctx, "CONFIG", CONFIG)
     script = getattr(ctx, "POLICY_SCRIPT", POLICY_SCRIPT)
     if not interface or interface == "auto":
@@ -56,13 +53,9 @@ def apply_vpn_policy(interface: Optional[str] = None) -> bool:
         has_default = r_ok and (
             f"default dev {target_iface}" in r_out or "default dev" in r_out
         )
+        subnets = (subnet, r_subnet, "10.42.0.0/24", "10.43.0.0/24")
         has_rule = any(
-            (
-                f"from {subnet}" in line
-                or f"from {r_subnet}" in line
-                or "from 10.42.0.0/24" in line
-                or "from 10.43.0.0/24" in line
-            )
+            any(f"from {s}" in line for s in subnets)
             and any(f"lookup {t}" in line for t in valid_tables)
             for line in (rule_out or "").splitlines()
         )
@@ -142,33 +135,39 @@ def check_wan_stability(iface: str = "eth0", count: int = 4) -> bool:
 
 def _get_dev_gateway(runner, dev: str) -> Optional[str]:
     ok, out, _ = runner(["ip", "-4", "route", "show", "dev", dev])
-    if ok and out:
-        for line in out.splitlines():
-            parts = line.split()
-            if "via" in parts:
-                return parts[parts.index("via") + 1]
+    for line in (out or "").splitlines():
+        p = line.split()
+        if ok and "via" in p:
+            return p[p.index("via") + 1]
     ok_nm, out_nm, _ = runner(["nmcli", "-g", "IP4.GATEWAY", "dev", "show", dev])
-    gw = out_nm.strip().splitlines() if ok_nm and out_nm else []
-    return gw[0] if gw else None
+    return out_nm.strip().splitlines()[0] if ok_nm and out_nm.strip() else None
 
 
 def _clean_routes_for_dev(runner, dev: str, is_primary: bool) -> None:
     ok, out, _ = runner(["ip", "-4", "route", "show", "default", "dev", dev])
-    if not (ok and out):
-        return
     keep = "metric 50" if is_primary else "metric 600"
-    for line in out.splitlines():
-        if keep not in line:
+    for line in (out or "").splitlines():
+        if ok and keep not in line:
             p = line.split()
-            via = ["via", p[p.index("via") + 1]] if "via" in p else []
-            metric = ["metric", p[p.index("metric") + 1]] if "metric" in p else []
-            runner(["sudo", "ip", "route", "del", "default", *via, "dev", dev, *metric])
+            v = ["via", p[p.index("via") + 1]] if "via" in p else []
+            m = ["metric", p[p.index("metric") + 1]] if "metric" in p else []
+            runner(["sudo", "ip", "route", "del", "default", *v, "dev", dev, *m])
 
 
 def _route_cmd(dev: str, gw: Optional[str], metric: str) -> list[str]:
     gw_p = ["via", gw] if gw else []
-    base = ["sudo", "ip", "route", "replace", "default"]
-    return [*base, *gw_p, "dev", dev, "metric", metric]
+    return [
+        "sudo",
+        "ip",
+        "route",
+        "replace",
+        "default",
+        *gw_p,
+        "dev",
+        dev,
+        "metric",
+        metric,
+    ]
 
 
 def get_current_default_wan() -> str:
@@ -195,8 +194,7 @@ def get_current_default_wan() -> str:
 def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
     """Switch primary default WAN route between eth0 and usb0."""
     ctx = Context.get()
-    runner = getattr(ctx, "run_args", run_args)
-    logger = getattr(ctx, "log", log)
+    runner, logger = getattr(ctx, "run_args", run_args), getattr(ctx, "log", log)
     chk_wan = getattr(ctx, "check_wan_reachability", check_wan_reachability)
     get_wan = getattr(ctx, "get_current_default_wan", get_current_default_wan)
 
@@ -223,13 +221,18 @@ def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
         pass
 
     current_wan = get_wan()
-    cur_state = ""
     try:
         cur_state = open(WAN_STATE_FILE, encoding="utf-8").read().strip()
     except OSError:
-        pass
+        cur_state = ""
 
-    if target == current_wan and target == cur_state:
+    ok_r, r_out, _ = runner(["ip", "-4", "route", "show", "default", "table", "main"])
+    r_lines = (r_out or "").splitlines()
+    clean_50 = ok_r and any(
+        f"dev {target}" in line and "metric 50" in line for line in r_lines
+    )
+    unmetered = any("metric" not in line for line in r_lines)
+    if target == current_wan == cur_state and clean_50 and not unmetered:
         return True
 
     logger(f"Switching default WAN uplink to [{target}]...", "INFO")
@@ -244,9 +247,8 @@ def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
         pass
     getattr(ctx, "update_goodwifi_conf", update_goodwifi_conf)("LAN_IF", target)
     getattr(ctx, "apply_vpn_policy", apply_vpn_policy)()
-    rst = getattr(ctx, "restart_vpn", None)
-    if rst:
-        rst()
+    if getattr(ctx, "restart_vpn", None):
+        getattr(ctx, "restart_vpn")()
 
     logger(f"Successfully switched WAN to [{target}]", "SUCCESS")
     notify_fn = getattr(ctx, "send_telegram_notification", send_telegram_notification)

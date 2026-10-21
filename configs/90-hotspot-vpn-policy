@@ -117,6 +117,9 @@ if [ -n "${1:-}" ]; then
     elif is_vpn_iface "$1"; then
         VPN_IF="$1"
         ACTION="${2:-apply}"
+    elif [ "$1" = "${HOTSPOT_IF:-wlan0}" ] || [ "$1" = "${ROUTER_AP_IF:-eth1}" ]; then
+        # When hotspot or router interface changes state, re-apply AP rules with active VPN
+        ACTION="${2:-apply}"
     else
         # NetworkManager dispatcher calls all scripts for every network device event
         # (e.g. eth0, wlan0, docker0, veth*). Events for non-VPN devices must be ignored.
@@ -297,6 +300,7 @@ remove_ap_rules() {
     for subnet in $MANAGEMENT_SUBNETS; do
         ip rule del from "$_subnet" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
     done
+    ip rule del from "$_subnet" to "$_subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
 }
 
 apply_ap_rules() {
@@ -313,6 +317,10 @@ apply_ap_rules() {
         ip rule del from "$_subnet" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
         ip rule add from "$_subnet" to "$subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
     done
+
+    # Intra-subnet bypass: traffic within the same AP subnet routes via main table (local interface)
+    ip rule del from "$_subnet" to "$_subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
+    ip rule add from "$_subnet" to "$_subnet" table main priority "$MANAGEMENT_RULE_PRIORITY" 2>/dev/null || true
 
     iptables -t nat -C POSTROUTING -s "$_subnet" -o "$VPN_IF" -j MASQUERADE 2>/dev/null || \
         iptables -t nat -A POSTROUTING -s "$_subnet" -o "$VPN_IF" -j MASQUERADE

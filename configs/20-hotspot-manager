@@ -30,8 +30,11 @@ get_active_vpn() {
 }
 
 is_wan_interface() {
+    if [ "$1" = "${ROUTER_AP_IF:-eth1}" ] || [ "$1" = "${HOTSPOT_IF:-wlan0}" ]; then
+        return 1
+    fi
     case "$1" in
-        "$LAN_IF"|eth*|usb*|wwan*|enx*|wlan1) return 0 ;;
+        "$LAN_IF"|eth0|usb*|wwan*|enx*|wlan1) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -84,8 +87,10 @@ case "${2:-}" in
                     fi
                 fi
             else
-                log_message "No internet, renewing DHCP..."
-                dhclient -v "$LAN_IF" >> "$LOG_FILE" 2>&1 || true
+                log_message "No internet on $LAN_IF, checking auto-WAN..."
+                if [ -x "$HOTSPOT_MGR" ]; then
+                    python3 "$HOTSPOT_MGR" --wan auto >> "$LOG_FILE" 2>&1 || true
+                fi
             fi
         ) &
         ;;
