@@ -47,8 +47,20 @@ jobs:
         working-directory: ${{ env.DEPLOY_PATH }}
         run: |
           cd telegrambot
-          # Build with host network so package managers can reach Debian mirrors reliably on Pi
-          docker build --network=host -t mpxraspberrypibot .
+          # Pre-pull base image with retry to handle transient Docker Hub resets
+          for i in 1 2 3 4 5; do
+            docker pull python:3.11-slim && break || {
+              echo "docker pull failed (attempt $i/5), retrying in 5s..."
+              sleep 5
+            }
+          done
+          # Build with host network and retry
+          for i in 1 2 3; do
+            docker build --network=host -t mpxraspberrypibot . && break || {
+              echo "docker build failed (attempt $i/3), retrying in 5s..."
+              sleep 5
+            }
+          done
           docker compose down --remove-orphans || true
           docker compose up -d
           docker compose logs --tail=80
