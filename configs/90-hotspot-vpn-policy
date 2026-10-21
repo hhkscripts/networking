@@ -117,9 +117,6 @@ if [ -n "${1:-}" ]; then
     elif is_vpn_iface "$1"; then
         VPN_IF="$1"
         ACTION="${2:-apply}"
-    elif [ "$1" = "${HOTSPOT_IF:-wlan0}" ] || [ "$1" = "${ROUTER_AP_IF:-eth1}" ]; then
-        # When hotspot or router interface changes state, re-apply AP rules with active VPN
-        ACTION="${2:-apply}"
     else
         # NetworkManager dispatcher calls all scripts for every network device event
         # (e.g. eth0, wlan0, docker0, veth*). Events for non-VPN devices must be ignored.

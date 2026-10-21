@@ -17,10 +17,11 @@ def _get_routing_table_names(table: str = "100") -> Set[str]:
     for p in ["/etc/iproute2/rt_tables", "/usr/share/iproute2/rt_tables"]:
         if os.path.exists(p):
             try:
-                for line in open(p, encoding="utf-8"):
-                    parts = line.split()
-                    if len(parts) >= 2 and parts[0] == str(table):
-                        names.add(parts[1])
+                with open(p, encoding="utf-8") as f:
+                    for line in f:
+                        parts = line.split()
+                        if len(parts) >= 2 and parts[0] == str(table):
+                            names.add(parts[1])
             except Exception:
                 pass
     return names
@@ -95,7 +96,8 @@ WAN_MODE_FILE = "/run/goodwifi-wan-mode"
 def get_wan_mode() -> str:
     """Return WAN mode: 'auto' or 'manual'."""
     try:
-        val = open(WAN_MODE_FILE, encoding="utf-8").read().strip().lower()
+        with open(WAN_MODE_FILE, encoding="utf-8") as f:
+            val = f.read().strip().lower()
         return val if val in ["auto", "manual"] else "auto"
     except OSError:
         return "auto"
@@ -155,19 +157,10 @@ def _clean_routes_for_dev(runner, dev: str, is_primary: bool) -> None:
 
 
 def _route_cmd(dev: str, gw: Optional[str], metric: str) -> list[str]:
-    gw_p = ["via", gw] if gw else []
-    return [
-        "sudo",
-        "ip",
-        "route",
-        "replace",
-        "default",
-        *gw_p,
-        "dev",
-        dev,
-        "metric",
-        metric,
-    ]
+    cmd = ["sudo", "ip", "route", "replace", "default"]
+    if gw:
+        cmd.extend(["via", gw])
+    return [*cmd, "dev", dev, "metric", metric]
 
 
 def get_current_default_wan() -> str:
@@ -216,13 +209,15 @@ def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
         return False
 
     try:
-        open(WAN_MODE_FILE, "w", encoding="utf-8").write(mode)
+        with open(WAN_MODE_FILE, "w", encoding="utf-8") as f:
+            f.write(mode)
     except OSError:
         pass
 
     current_wan = get_wan()
     try:
-        cur_state = open(WAN_STATE_FILE, encoding="utf-8").read().strip()
+        with open(WAN_STATE_FILE, encoding="utf-8") as f:
+            cur_state = f.read().strip()
     except OSError:
         cur_state = ""
 
@@ -242,7 +237,8 @@ def switch_wan_uplink(target: str, mode: Optional[str] = None) -> bool:
         runner(_route_cmd(dev, gw, "50" if dev == target else "600"))
 
     try:
-        open(WAN_STATE_FILE, "w", encoding="utf-8").write(target)
+        with open(WAN_STATE_FILE, "w", encoding="utf-8") as f:
+            f.write(target)
     except Exception:
         pass
     getattr(ctx, "update_goodwifi_conf", update_goodwifi_conf)("LAN_IF", target)

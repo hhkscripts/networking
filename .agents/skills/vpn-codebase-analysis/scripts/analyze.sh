@@ -157,10 +157,10 @@ fi
 
 # 9. Hotspot Manager & Routing Tests
 echo -e "\n${YELLOW}[9/9] Running Hotspot Manager & Script Tests...${NC}"
-if env PYTHONHOME= PYTHONPATH= python3 -m unittest -v tests/test_hotspot_manager.py; then
-    echo -e "${GREEN}✅ PASSED: All Hotspot Manager unit tests succeeded.${NC}"
+if env PYTHONHOME= PYTHONPATH= python3 -m unittest -v tests/test_hotspot_manager.py && tests/test-vpn-scripts.sh; then
+    echo -e "${GREEN}✅ PASSED: All Hotspot Manager and script tests succeeded.${NC}"
 else
-    echo -e "${RED}❌ FAILED: Hotspot Manager unit tests failed.${NC}"
+    echo -e "${RED}❌ FAILED: Hotspot Manager or script tests failed.${NC}"
     FAILURES=$((FAILURES + 1))
 fi
 
