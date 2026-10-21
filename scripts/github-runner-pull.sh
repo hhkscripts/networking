@@ -76,6 +76,12 @@ if [ -f "$REPO_DIR/configs/95-hotspot-wan-trigger" ]; then
   $SUDO_CMD cp -f "$REPO_DIR/configs/95-hotspot-wan-trigger" /etc/NetworkManager/dispatcher.d/95-hotspot-wan-trigger 2>/dev/null || true
   $SUDO_CMD chmod 0755 /etc/NetworkManager/dispatcher.d/95-hotspot-wan-trigger 2>/dev/null || true
 fi
+if [ -f "$REPO_DIR/configs/goodwifi-router-proxy.service" ]; then
+  $SUDO_CMD cp -f "$REPO_DIR/configs/goodwifi-router-proxy.service" /etc/systemd/system/goodwifi-router-proxy.service 2>/dev/null || true
+  $SUDO_CMD systemctl daemon-reload 2>/dev/null || true
+  $SUDO_CMD systemctl enable --now goodwifi-router-proxy.service 2>/dev/null || true
+  $SUDO_CMD systemctl restart goodwifi-router-proxy.service 2>/dev/null || true
+fi
 
 # Clean up legacy ipsets and config keys on Pi host if migrating
 if [ -f /etc/goodwifi/goodwifi.conf ]; then

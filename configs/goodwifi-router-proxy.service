@@ -1,0 +1,15 @@
+[Unit]
+Description=GoodWifi Router AP Reverse Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Environment=PYTHONPATH=/usr/local/lib
+ExecStart=/usr/bin/python3 -m hotspot.proxy 8092
+WorkingDirectory=/usr/local/lib
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
