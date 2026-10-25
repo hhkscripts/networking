@@ -248,6 +248,7 @@ def send_telegram_notification(message: str) -> bool:
     allowed = os.getenv("TELEGRAM_ALLOWED_USERS", "")
     if not token or not allowed:
         for env_path in [
+            "/home/hhk/Projects/networking/telegrambot/.env",
             "/home/hhk/Projects/vpn/telegrambot/.env",
             "/opt/goodwifi/telegrambot/.env",
             "/etc/goodwifi/telegram.env",

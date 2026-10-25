@@ -20,6 +20,10 @@ elif [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/configs/routes" ]; then
     ROUTES_DIR="$REPO_ROOT/configs/routes"
 elif [ -d "/etc/goodwifi/routes" ]; then
     ROUTES_DIR="/etc/goodwifi/routes"
+elif [ -d "/home/hhk/Projects/networking/configs/routes" ]; then
+    ROUTES_DIR="/home/hhk/Projects/networking/configs/routes"
+elif [ -d "/home/pi/Projects/networking/configs/routes" ]; then
+    ROUTES_DIR="/home/pi/Projects/networking/configs/routes"
 elif [ -d "/home/hhk/Projects/vpn/configs/routes" ]; then
     ROUTES_DIR="/home/hhk/Projects/vpn/configs/routes"
 elif [ -d "/home/pi/Projects/vpn/configs/routes" ]; then
@@ -46,6 +50,14 @@ elif [ -d "/etc/goodwifi/adguard/conf" ]; then
     ADGUARD_CONF_DIR="/etc/goodwifi/adguard/conf"
 elif [ -d "/opt/adguardhome/conf" ]; then
     ADGUARD_CONF_DIR="/opt/adguardhome/conf"
+elif [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/Projects/networking/adguard/conf" ]; then
+    ADGUARD_CONF_DIR="/home/$SUDO_USER/Projects/networking/adguard/conf"
+elif [ -n "${HOME:-}" ] && [ -d "$HOME/Projects/networking/adguard/conf" ]; then
+    ADGUARD_CONF_DIR="$HOME/Projects/networking/adguard/conf"
+elif [ -d "/home/hhk/Projects/networking/adguard/conf" ]; then
+    ADGUARD_CONF_DIR="/home/hhk/Projects/networking/adguard/conf"
+elif [ -d "/home/pi/Projects/networking/adguard/conf" ]; then
+    ADGUARD_CONF_DIR="/home/pi/Projects/networking/adguard/conf"
 elif [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/Projects/vpn/adguard/conf" ]; then
     ADGUARD_CONF_DIR="/home/$SUDO_USER/Projects/vpn/adguard/conf"
 elif [ -n "${HOME:-}" ] && [ -d "$HOME/Projects/vpn/adguard/conf" ]; then

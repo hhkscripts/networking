@@ -90,6 +90,6 @@ ssh -o BatchMode=yes -o ConnectTimeout=5 hhk@192.168.100.69 "sudo hotspot-manage
 ## 6. Remote Synchronizing & Updating Pi Host
 When repository changes are pushed to GitHub, sync and apply to the live Pi:
 ```bash
-ssh -o BatchMode=yes -o ConnectTimeout=5 hhk@192.168.100.69 "cd ~/Projects/vpn && sudo bash scripts/github-runner-pull.sh"
+ssh -o BatchMode=yes -o ConnectTimeout=5 hhk@192.168.100.69 "cd ~/Projects/networking && sudo bash scripts/github-runner-pull.sh"
 ```
 *(Note: `github-runner-pull.sh` automatically copies updated scripts to `/usr/local/bin` and `/usr/local/lib/hotspot`, reloads route policies, and gracefully applies local files even if the Pi is temporarily offline).*
