@@ -88,18 +88,28 @@ VPN_UUID=""
 VPN_ROUTES_IPSET="vpn_routes"
 LOCAL_ROUTES_IPSET="local_routes"
 
-# Network Interfaces
+# Network Interfaces & Hotspot
+HOTSPOT_SSID="GoodWifi"
 HOTSPOT_IF="wlan0"
 HOTSPOT_SUBNET="10.42.0.0/24"
 HOTSPOT_IP="10.42.0.1"
 LAN_IF="eth0"
 
+# Access Point Mode:
+# "internal" : Uses Raspberry Pi onboard Wi-Fi (wlan0) with hostapd (default for standalone Pi)
+# "router"   : Uses external router AP (e.g. TP-Link connected via eth1)
+AP_MODE="internal"
+
 # IPv6 leak protection for Wi-Fi hotspot clients:
-# "drop"   : Silently drop client IPv6 forwarding (default; prevents VPN bypass / IPv6 leak)
 # "reject" : Reject client IPv6 forwarding with ICMPv6 unreachable (fail fast)
+# "drop"   : Silently drop client IPv6 forwarding (default; prevents VPN bypass / IPv6 leak)
 # "off"    : Allow IPv6 forwarding (use only if your VPN provides full dual-stack IPv6 routing)
-IPV6_LEAK_PROTECTION="drop"
+IPV6_LEAK_PROTECTION="reject"
 ```
+
+> [!TIP]
+> **Complete VPN Backend Setup Guide:**
+> For detailed step-by-step instructions, templates, and example configurations for sing-box VLESS Reality, AmneziaWG, WireGuard, and OpenVPN, see [`docs/VPN_SETUP_GUIDE.md`](docs/VPN_SETUP_GUIDE.md).
 
 ---
 
@@ -227,12 +237,17 @@ chmod +x setup.sh uninstall.sh scripts/*.sh scripts/hotspot-manager.py
 sudo ./setup.sh
 ```
 
-During installation, the setup wizard will prompt you to set your custom **Hotspot Wi-Fi SSID** and **WPA2 Password** (at least 8 characters).
+During installation, the interactive setup wizard will prompt you for:
+1. **Access Point Mode**:
+   - `1) Internal Pi Wi-Fi (wlan0)`: Recommended for standalone Raspberry Pi.
+   - `2) External Router AP (eth1)`: For secondary Wi-Fi routers (e.g. TP-Link via Ethernet).
+2. **Hotspot Wi-Fi SSID & Password**: Choose your custom network name and WPA2 passphrase (minimum 8 characters).
+3. **VPN Configuration Guide**: Direct instructions on where to copy your VPN configuration files.
 
-You can also pass credentials directly for automated/unattended deployments:
+You can also pass environment variables directly for automated/unattended deployments:
 
 ```bash
-HOTSPOT_SSID="MySecureHotspot" HOTSPOT_PASSWORD="SuperSecretPassword123" sudo -E ./setup.sh
+AP_MODE="internal" HOTSPOT_SSID="MySecureHotspot" HOTSPOT_PASSWORD="SuperSecretPassword123" sudo -E ./setup.sh
 ```
 
 ### Changing Hotspot Name or Password Later

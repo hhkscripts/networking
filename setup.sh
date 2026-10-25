@@ -334,35 +334,116 @@ render_hostapd_conf() {
 }
 
 configure_hotspot_credentials() {
-  local current_ssid current_password ssid password entered_ssid entered_password
+  local current_ap_mode="internal"
+  if [ -r /etc/goodwifi/goodwifi.conf ]; then
+    current_ap_mode="$(awk -F= '$1 == "AP_MODE" {print $2; exit}' /etc/goodwifi/goodwifi.conf | tr -d ' "\047')"
+  fi
+  current_ap_mode="${current_ap_mode:-internal}"
+
+  local selected_ap_mode="${AP_MODE:-$current_ap_mode}"
+
+  if [ -t 0 ] && [ -z "${AP_MODE:-}" ]; then
+    echo ""
+    echo "====================================================="
+    echo "  📶 GoodWifi Access Point Mode Setup"
+    echo "====================================================="
+    echo "Select how devices will connect to your Hotspot:"
+    echo "  1) Internal Pi Wi-Fi (wlan0) [Recommended for standalone Pi]"
+    echo "  2) External Router AP (e.g. TP-Link router connected via eth1)"
+    read -r -p "Select AP mode [1/2] (current: $current_ap_mode): " entered_mode
+    case "$entered_mode" in
+      2|router|Router)
+        selected_ap_mode="router"
+        ;;
+      1|internal|Internal|"")
+        selected_ap_mode="${current_ap_mode:-internal}"
+        if [ "$entered_mode" = "1" ]; then selected_ap_mode="internal"; fi
+        ;;
+      *)
+        log_warn "Invalid selection '$entered_mode'. Using default: $current_ap_mode"
+        selected_ap_mode="$current_ap_mode"
+        ;;
+    esac
+  fi
+
+  AP_MODE="$selected_ap_mode"
+  log_info "Selected Access Point Mode: $AP_MODE"
+
   local current_conf="$HOSTAPD_CONF"
   if [ -r /etc/hostapd/hostapd.conf ]; then
     current_conf=/etc/hostapd/hostapd.conf
   fi
 
+  local current_ssid current_password entered_ssid entered_password
   current_ssid="$(awk -F= '$1 == "ssid" {print $2; exit}' "$current_conf")"
   current_password="$(awk -F= '$1 == "wpa_passphrase" {print $2; exit}' "$current_conf")"
-  ssid="${HOTSPOT_SSID:-$current_ssid}"
-  password="${HOTSPOT_PASSWORD:-$current_password}"
+  HOTSPOT_SSID="${HOTSPOT_SSID:-$current_ssid}"
+  HOTSPOT_PASSWORD="${HOTSPOT_PASSWORD:-$current_password}"
 
-  if [ -t 0 ]; then
-    read -r -p "Hotspot SSID [$ssid]: " entered_ssid
-    ssid="${entered_ssid:-$ssid}"
-    read -r -s -p "Hotspot password (8+ chars, blank keeps current): " entered_password
-    echo
-    password="${entered_password:-$password}"
+  if [ "$AP_MODE" = "internal" ]; then
+    if [ -t 0 ]; then
+      read -r -p "Hotspot SSID [$HOTSPOT_SSID]: " entered_ssid
+      HOTSPOT_SSID="${entered_ssid:-$HOTSPOT_SSID}"
+      read -r -s -p "Hotspot password (8+ chars, blank keeps current): " entered_password
+      echo
+      HOTSPOT_PASSWORD="${entered_password:-$HOTSPOT_PASSWORD}"
+    fi
+
+    if [ "${#HOTSPOT_PASSWORD}" -lt 8 ]; then
+      echo "Hotspot password must be at least 8 characters." >&2
+      exit 1
+    fi
+
+    if [ "$HOTSPOT_PASSWORD" = "GoodPassword" ]; then
+      log_warn "Notice: Using default password 'GoodPassword'. To secure your Wi-Fi, set a custom password with HOTSPOT_PASSWORD."
+    fi
   fi
 
-  if [ "${#password}" -lt 8 ]; then
-    echo "Hotspot password must be at least 8 characters." >&2
-    exit 1
+  render_hostapd_conf "$HOTSPOT_SSID" "$HOTSPOT_PASSWORD"
+}
+
+show_vpn_onboarding_guide() {
+  local has_singbox=0 has_awg=0 has_wg=0 has_ovpn=0
+  [ -f /etc/sing-box/config.json ] && has_singbox=1
+  [ -f /etc/amnezia/amneziawg/awg0.conf ] && has_awg=1
+  [ -f /etc/wireguard/wg0.conf ] && has_wg=1
+  if [ -f /etc/openvpn/client/client.conf ] || [ -f /etc/openvpn/client.conf ] || nmcli -t -f TYPE connection show 2>/dev/null | grep -q "vpn"; then
+    has_ovpn=1
   fi
 
-  if [ "$password" = "GoodPassword" ]; then
-    log_warn "Notice: Using default password 'GoodPassword'. To secure your Wi-Fi, set a custom password with HOTSPOT_PASSWORD."
+  sudo mkdir -p /etc/sing-box /etc/amnezia/amneziawg /etc/wireguard /etc/openvpn
+
+  if [ "$has_singbox" -eq 1 ] || [ "$has_awg" -eq 1 ] || [ "$has_wg" -eq 1 ] || [ "$has_ovpn" -eq 1 ]; then
+    return 0
   fi
 
-  render_hostapd_conf "$ssid" "$password"
+  echo ""
+  echo "====================================================="
+  echo "  🛡️ VPN Profile Setup Guide for New Installations"
+  echo "====================================================="
+  echo "GoodWifi routes all client traffic through an encrypted VPN tunnel."
+  echo "No active VPN configuration profile was detected on this system."
+  echo ""
+  echo "To activate VPN protection, choose and configure ANY backend:"
+  echo "  1) sing-box VLESS Reality (Recommended for strong censorship / DPI):"
+  echo "     Place your config file at: /etc/sing-box/config.json"
+  echo ""
+  echo "  2) AmneziaWG (Obfuscated WireGuard against DPI):"
+  echo "     Place your config at:      /etc/amnezia/amneziawg/awg0.conf"
+  echo "     Important: Add 'Table = off' in the [Interface] section."
+  echo ""
+  echo "  3) Standard WireGuard:"
+  echo "     Place your config at:      /etc/wireguard/wg0.conf"
+  echo "     Important: Add 'Table = off' in the [Interface] section."
+  echo ""
+  echo "  4) OpenVPN:"
+  echo "     Import your .ovpn profile via NetworkManager:"
+  echo "     sudo nmcli connection import type openvpn file <profile>.ovpn"
+  echo ""
+  echo "Detailed guide & sample configs: docs/VPN_SETUP_GUIDE.md"
+  echo "After placing your profile, activate routing with: hotspot --restart-vpn"
+  echo "====================================================="
+  echo ""
 }
 
 log_info "Starting Raspberry Pi Hotspot setup/apply"
@@ -412,11 +493,20 @@ sudo mkdir -p /etc/goodwifi
 if [ ! -f /etc/goodwifi/goodwifi.conf ]; then
   copy_file "$CONFIG_DIR/goodwifi.conf" /etc/goodwifi/goodwifi.conf 0644
 fi
-if [ -f /etc/goodwifi/goodwifi.conf ] && [ -n "$ssid" ]; then
-  if grep -q '^HOTSPOT_SSID=' /etc/goodwifi/goodwifi.conf; then
-    sudo sed -i "s/^HOTSPOT_SSID=.*/HOTSPOT_SSID=\"$ssid\"/" /etc/goodwifi/goodwifi.conf 2>/dev/null || true
-  else
-    echo "HOTSPOT_SSID=\"$ssid\"" | sudo tee -a /etc/goodwifi/goodwifi.conf >/dev/null || true
+if [ -f /etc/goodwifi/goodwifi.conf ]; then
+  if [ -n "$HOTSPOT_SSID" ]; then
+    if grep -q '^HOTSPOT_SSID=' /etc/goodwifi/goodwifi.conf; then
+      sudo sed -i "s/^HOTSPOT_SSID=.*/HOTSPOT_SSID=\"$HOTSPOT_SSID\"/" /etc/goodwifi/goodwifi.conf 2>/dev/null || true
+    else
+      echo "HOTSPOT_SSID=\"$HOTSPOT_SSID\"" | sudo tee -a /etc/goodwifi/goodwifi.conf >/dev/null || true
+    fi
+  fi
+  if [ -n "${AP_MODE:-}" ]; then
+    if grep -q '^AP_MODE=' /etc/goodwifi/goodwifi.conf; then
+      sudo sed -i "s/^AP_MODE=.*/AP_MODE=\"$AP_MODE\"/" /etc/goodwifi/goodwifi.conf 2>/dev/null || true
+    else
+      echo "AP_MODE=\"$AP_MODE\"" | sudo tee -a /etc/goodwifi/goodwifi.conf >/dev/null || true
+    fi
   fi
 fi
 copy_file "$CONFIG_DIR/github-ipv4-ranges.txt" /etc/goodwifi/github-ipv4-ranges.txt 0644
@@ -429,7 +519,7 @@ HOTSPOT_IP="${HOTSPOT_IP:-10.42.0.1}"
 HOTSPOT_SUBNET="${HOTSPOT_SUBNET:-10.42.0.0/24}"
 
 log_info "Installing config files from configs/ for interface $HOTSPOT_IF"
-render_hostapd_conf "$ssid" "$password"
+render_hostapd_conf "$HOTSPOT_SSID" "$HOTSPOT_PASSWORD"
 copy_file "$GENERATED_HOSTAPD_CONF" /etc/hostapd/hostapd.conf 0644
 
 tmp_hostapd_override="$(mktemp)"
@@ -551,8 +641,16 @@ sudo ip addr add "$HOTSPOT_IP/24" dev "$HOTSPOT_IF" 2>/dev/null || true
 log_info "Restarting NetworkManager and hotspot services"
 sudo systemctl daemon-reload
 sudo systemctl restart NetworkManager
-sudo systemctl unmask hostapd 2>/dev/null || true
-sudo systemctl enable hostapd dnsmasq 2>/dev/null || true
+if [ "${AP_MODE:-internal}" = "router" ]; then
+  sudo systemctl stop hostapd 2>/dev/null || true
+  sudo systemctl disable hostapd 2>/dev/null || true
+  log_info "Router AP mode active; hostapd is set to standby (external router handles AP)"
+else
+  sudo systemctl unmask hostapd 2>/dev/null || true
+  sudo systemctl enable hostapd 2>/dev/null || true
+  sudo systemctl restart hostapd 2>/dev/null || true
+fi
+sudo systemctl enable dnsmasq 2>/dev/null || true
 if [ -f /etc/amnezia/amneziawg/awg0.conf ]; then
   sudo systemctl enable awg-quick@awg0 2>/dev/null || true
 fi
@@ -563,7 +661,7 @@ if [ -f /etc/sing-box/config.json ]; then
   sudo systemctl enable xray sing-box 2>/dev/null || true
 fi
 sudo systemctl enable --now goodwifi-watchdog.timer 2>/dev/null || true
-sudo systemctl restart hostapd dnsmasq 2>/dev/null || true
+sudo systemctl restart dnsmasq 2>/dev/null || true
 restart_adguard_if_configured
 restart_telegrambot_if_configured
 
@@ -585,8 +683,8 @@ if vpn_has_ipv4; then
   fi
 else
   log_warn "No active VPN interface (sing0, awg0, wg0, tun0) with an IPv4 address found."
-  log_warn "If using OpenVPN ('pi'), confirm it creates tun0. If using AmneziaWG, check awg0. If using sing-box, check sing0."
-  log_warn "After the VPN is healthy, reapply hotspot routing with: hotspot --restart-vpn"
+  show_vpn_onboarding_guide
+  log_warn "After placing your VPN profile, reapply hotspot routing with: hotspot --restart-vpn"
   log_warn "Then refresh routes with: sudo apply-routes.sh"
 fi
 
