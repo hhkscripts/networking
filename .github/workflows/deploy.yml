@@ -33,16 +33,23 @@ jobs:
         working-directory: ${{ env.DEPLOY_PATH }}
         run: |
           cd telegrambot
-          echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
-          if [ -n "${{ secrets.TELEGRAM_ALLOWED_USERS }}" ]; then
-            echo "TELEGRAM_ALLOWED_USERS=${{ secrets.TELEGRAM_ALLOWED_USERS }}" >> .env
+          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
+            if [ -n "${{ secrets.TELEGRAM_ALLOWED_USERS }}" ]; then
+              echo "TELEGRAM_ALLOWED_USERS=${{ secrets.TELEGRAM_ALLOWED_USERS }}" >> .env
+            fi
+            echo "BOT_HEALTH_HOST=0.0.0.0" >> .env
+            echo "BOT_HEALTH_PORT=8081" >> .env
+            echo "BOT_SERVICE_NAME=mpxraspberrypibot" >> .env
+          elif [ -f .env ]; then
+            echo "Secrets not provided; keeping existing .env"
           fi
           # Debug: Show allowed users count (not values)
-          if [ -n "${{ secrets.TELEGRAM_ALLOWED_USERS }}" ]; then
-            USER_COUNT=$(echo "${{ secrets.TELEGRAM_ALLOWED_USERS }}" | tr ',' '\n' | wc -l)
+          if grep -q "TELEGRAM_ALLOWED_USERS=" .env 2>/dev/null; then
+            USERS_VAL=$(grep "TELEGRAM_ALLOWED_USERS=" .env | cut -d"=" -f2-)
+            USER_COUNT=$(echo "$USERS_VAL" | tr "," "\n" | wc -l)
             echo "Configured for $USER_COUNT authorized users."
           fi
-
       - name: Build and Run with Docker Compose
         working-directory: ${{ env.DEPLOY_PATH }}
         run: |

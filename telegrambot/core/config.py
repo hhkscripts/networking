@@ -20,7 +20,7 @@ ALLOWED_USER_IDS: List[int] = (
     else []
 )
 
-BOT_HEALTH_HOST: str = os.getenv("BOT_HEALTH_HOST", "127.0.0.1")
+BOT_HEALTH_HOST: str = os.getenv("BOT_HEALTH_HOST", "0.0.0.0")
 BOT_HEALTH_PORT: int = int(os.getenv("BOT_HEALTH_PORT", "8081"))
 BOT_SERVICE_NAME: str = os.getenv("BOT_SERVICE_NAME", "mpxraspberrypibot")
 ALLOW_ALL_USERS: bool = os.getenv("TELEGRAM_ALLOW_ALL_USERS", "false").lower() in (
