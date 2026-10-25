@@ -24,10 +24,6 @@ elif [ -d "/home/hhk/Projects/networking/configs/routes" ]; then
     ROUTES_DIR="/home/hhk/Projects/networking/configs/routes"
 elif [ -d "/home/pi/Projects/networking/configs/routes" ]; then
     ROUTES_DIR="/home/pi/Projects/networking/configs/routes"
-elif [ -d "/home/hhk/Projects/vpn/configs/routes" ]; then
-    ROUTES_DIR="/home/hhk/Projects/vpn/configs/routes"
-elif [ -d "/home/pi/Projects/vpn/configs/routes" ]; then
-    ROUTES_DIR="/home/pi/Projects/vpn/configs/routes"
 else
     ROUTES_DIR="$PROJECT_DIR/configs/routes"
 fi
@@ -58,14 +54,6 @@ elif [ -d "/home/hhk/Projects/networking/adguard/conf" ]; then
     ADGUARD_CONF_DIR="/home/hhk/Projects/networking/adguard/conf"
 elif [ -d "/home/pi/Projects/networking/adguard/conf" ]; then
     ADGUARD_CONF_DIR="/home/pi/Projects/networking/adguard/conf"
-elif [ -n "${SUDO_USER:-}" ] && [ -d "/home/$SUDO_USER/Projects/vpn/adguard/conf" ]; then
-    ADGUARD_CONF_DIR="/home/$SUDO_USER/Projects/vpn/adguard/conf"
-elif [ -n "${HOME:-}" ] && [ -d "$HOME/Projects/vpn/adguard/conf" ]; then
-    ADGUARD_CONF_DIR="$HOME/Projects/vpn/adguard/conf"
-elif [ -d "/home/hhk/Projects/vpn/adguard/conf" ]; then
-    ADGUARD_CONF_DIR="/home/hhk/Projects/vpn/adguard/conf"
-elif [ -d "/home/pi/Projects/vpn/adguard/conf" ]; then
-    ADGUARD_CONF_DIR="/home/pi/Projects/vpn/adguard/conf"
 else
     ADGUARD_CONF_DIR=""
 fi
