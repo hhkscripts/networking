@@ -46,11 +46,17 @@ def check_dns() -> bool:
     cfg = getattr(ctx, "CONFIG", CONFIG)
     runner = getattr(ctx, "run_args", run_args)
     test_domains = [cfg.get("dns_test_domain", "google.com"), "cloudflare.com"]
-    dns_ip = cfg.get("hotspot_ip", "10.42.0.1")
-    for domain in dict.fromkeys(d for d in test_domains if d):
-        ok, _, _ = runner(["nslookup", domain, dns_ip])
-        if ok:
-            return True
+    target_ip = (
+        cfg.get("router_ap_ip", "10.43.0.1")
+        if cfg.get("ap_mode") == "router"
+        else cfg.get("hotspot_ip", "10.42.0.1")
+    )
+    dns_ips = dict.fromkeys([target_ip, "127.0.0.1"])
+    for dns_ip in dns_ips:
+        for domain in dict.fromkeys(d for d in test_domains if d):
+            ok, _, _ = runner(["nslookup", domain, dns_ip])
+            if ok:
+                return True
     return False
 
 

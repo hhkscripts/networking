@@ -53,6 +53,22 @@ class StatusChecksTests(unittest.TestCase):
             self.assertEqual(calls[0], ["nslookup", "custom-domain.local", "10.50.0.1"])
             self.assertEqual(calls[1], ["nslookup", "cloudflare.com", "10.50.0.1"])
 
+    def test_check_dns_router_mode(self):
+        with (
+            patch.dict(
+                hotspot_manager.CONFIG,
+                {"ap_mode": "router", "router_ap_ip": "10.43.0.1"},
+            ),
+            patch.object(
+                hotspot_manager,
+                "run_args",
+                return_value=(True, "Address: 1.1.1.1", ""),
+            ) as mock_run,
+        ):
+            self.assertTrue(hotspot_manager.check_dns())
+            calls = [c[0][0] for c in mock_run.call_args_list]
+            self.assertEqual(calls[0], ["nslookup", "google.com", "10.43.0.1"])
+
     def test_check_clients_interface_fallback(self):
         with (
             patch.dict(hotspot_manager.CONFIG, {"interface_wlan": "wlan0"}),
