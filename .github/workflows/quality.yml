@@ -7,7 +7,7 @@ on:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -29,7 +29,7 @@ jobs:
       - name: VPN restart regression tests
         run: |
           python -m unittest -v tests/test_hotspot_manager.py
-          tests/test-vpn-scripts.sh
+          bash -x tests/test-vpn-scripts.sh
 
       - name: Telegram bot unit tests
         run: python -m unittest -v tests/test_telegram_bot.py
