@@ -9,16 +9,17 @@ dns:
     - 0.0.0.0
   port: 53
   upstream_dns:
-    - https://dns.google/dns-query
-    - 8.8.8.8
-    - 8.8.4.4
-    - 9.9.9.9
-    - 208.67.222.222
+    - https://1.1.1.1/dns-query
+    - https://1.0.0.1/dns-query
+    - tls://1.1.1.1
+    - tls://1.0.0.1
+    - tls://8.8.8.8
+    - tls://8.8.4.4
   bootstrap_dns:
+    - 1.1.1.1
+    - 1.0.0.1
     - 8.8.8.8
     - 9.9.9.9
-    - 208.67.222.222
-    - 149.112.112.10
   upstream_mode: parallel
   cache_optimistic: true
   ratelimit: 0
